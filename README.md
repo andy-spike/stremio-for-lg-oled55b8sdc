@@ -1,13 +1,49 @@
 # Stremio for LG OLED55B8SDC
 
-An unofficial Stremio app made for the LG OLED55B8SDC running webOS 4.
-Sign in to your Stremio account to use your addons, library, and Continue
-Watching on your TV. Use the remote or Magic Pointer to browse and play.
+An unofficial Stremio app I built for my LG OLED55B8SDC running webOS 4.
+Sign in with your Stremio account, pick something from your addons or library,
+and watch from the couch with your remote or Magic Pointer.
 
-This project has been tested on this TV. Other LG models may need changes.
-It is not affiliated with Stremio or LG.
+## Why build another Stremio app?
 
-## Requirements
+My TV still works well, but it's old enough to miss out on the official
+Stremio app. [LG's store listing](https://us.lgappstv.com/main/tvapp/detail?appId=1214520)
+starts at 2020 models running webOS 5.0. My B8 runs webOS 4, so it falls
+outside that supported range. [Stremio's announcement](https://blog.stremio.com/stremio-is-now-available-on-lg-tvs-for-models-2020/)
+also confirms the 2020-and-newer cutoff.
+
+There's a real platform gap here: older webOS TVs have a much older browser
+inside them. [LG's developer docs](https://webostv.developer.lge.com/develop/specifications/web-api-and-web-engine)
+list Chromium 53 for webOS 4, compared with Chromium 68 for webOS 5.
+That helps explain why supporting these TVs takes extra work, though Stremio's
+announcement doesn't give a specific technical reason for its cutoff.
+
+I wanted to keep using the TV I already had, so this project gives it a
+simpler interface built for its older browser, plus a separate playback
+runtime that runs on the TV. Other community apps exist too; this is the
+approach I've built and checked on my own TV. It isn't affiliated with
+Stremio or LG.
+
+## Will it work on my TV?
+
+**I've only tested this app on my LG OLED55B8SDC.** In theory, it should work
+on other rooted LG TVs running webOS 4 too, but that hasn't been verified.
+Different hardware, firmware, or supported video formats may need adjustments.
+If you try it on another webOS 4 model, please let us know how it goes.
+
+## Built with help from AI agents
+
+I relied heavily on AI coding agents to build this project, and we checked
+that the functionality worked on my TV along the way. That doesn't mean we
+caught everything.
+
+If you spot a mistake in the app or these instructions, please
+[open a GitHub issue](https://github.com/andy-spike/stremio-for-lg-oled55b8sdc/issues).
+Tell me your TV model, webOS version, what you tried, and what happened.
+I'll take a look with an agent and work on a fix. Please leave out passwords
+and other private account details.
+
+## What you’ll need
 
 - A **rooted LG TV**. Developer Mode alone is not enough for this app.
   See the [webOS Homebrew rooting guide](https://www.webosbrew.org/rooting/)
@@ -18,14 +54,14 @@ It is not affiliated with Stremio or LG.
   on your phone or computer first.
 - The app **and its playback runtime** installed on the TV (see below).
 
-## Install
+## Getting it onto your TV
 
 There are two parts: the TV app and the playback runtime. The runtime does
 work that the older TV browser cannot do on its own.
 
 **Fresh installation:** use the agent instructions below or follow the
-[installation guide](docs/install.md). This currently needs some setup;
-there is no complete one-click installer.
+[installation guide](docs/install.md). There’s a bit of setup involved for now;
+we don’t have a complete one-click installer yet.
 
 **Already have the runtime installed?** Download the `.ipk` file from the
 [latest release](https://github.com/andy-spike/stremio-for-lg-oled55b8sdc/releases/latest)
@@ -52,7 +88,7 @@ Open a coding agent on your computer, give it this repository, and paste:
 Your agent can handle the computer steps. You will still need to turn on the
 TV and complete any steps that require your remote or account sign-in.
 
-## Use the app
+## Watching something
 
 1. Open **Stremio** from the TV's home bar (the purple tile with a white play button).
 2. Follow the sign-in instructions on screen.
