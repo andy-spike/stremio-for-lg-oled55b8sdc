@@ -110,7 +110,18 @@ var Account = (function () {
       return chunks.reduce(function (p, ids) {
         return p.then(function () {
           return api("datastoreGet", { authKey: key, collection: "libraryItem", ids: ids, all: false })
-            .then(function (items) { current(); (items || []).forEach(function (it) { if (it && it._id && !dirty[it._id]) library[it._id] = it; }); });
+            .then(function (items) {
+              current();
+              (items || []).forEach(function (it) {
+                if (!it || !it._id) return;
+                // A local change wins only if it is newer than the account's copy
+                // (checked now, so a change made during the download is kept).
+                var local = library[it._id];
+                if (dirty[it._id] && local && mtime(local) >= mtime(it)) return;
+                library[it._id] = it;
+                delete dirty[it._id];
+              });
+            });
         });
       }, Promise.resolve()).then(function () {
         // Snapshot what is sent, at the moment it is sent.
