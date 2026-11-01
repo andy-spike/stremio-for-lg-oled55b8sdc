@@ -88,6 +88,7 @@
 .subs { font-size: 3.2vw; line-height: 1.25; color: #fff; font-weight: 600;
   text-shadow: 0 0 0.3vw rgba(0,0,0,0.9), 0.12vw 0.12vw 0.1vw #000, -0.12vw -0.12vw 0.1vw #000, 0.12vw -0.12vw 0.1vw #000, -0.12vw 0.12vw 0.1vw #000; }
 .subs.raised { transform: translateY(-16vw); }
+.subs.empty { display: none; }
 /* Legibility options: a box behind each line (not one block), or yellow text. */
 .subs.bg-translucent, .subs.bg-solid { line-height: 1.42; text-shadow: none; }
 .subs.bg-translucent span, .subs.bg-solid span { padding: 0.06em 0.4em; border-radius: 0.14em;

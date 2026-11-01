@@ -11,9 +11,15 @@ var Subtitles = (function () {
     return s;
   }
 
+  // Cue text -> plain lines: drops VTT/HTML tags and ASS override tags
+  // ({\an8}), turns ASS line breaks (\N) into real ones, decodes entities,
+  // trims each line and removes empty ones (an empty line would otherwise be
+  // drawn as an empty box when subtitles have a background).
   function clean(text) {
-    return text.replace(/<[^>]+>/g, "").replace(/\{\\[^}]*\}/g, "")
-      .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&nbsp;/g, " ");
+    return String(text || "").replace(/<[^>]+>/g, "").replace(/\{\\[^}]*\}/g, "").replace(/\\[Nn]/g, "\n")
+      .replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&(#39|apos);/g, "'")
+      .replace(/&#(\d+);/g, function (m, n) { return String.fromCharCode(+n); }).replace(/&amp;/g, "&")
+      .split("\n").map(function (l) { return l.replace(/\s+/g, " ").trim(); }).filter(Boolean).join("\n");
   }
 
   // VTT text -> [{ start, end, text }] sorted by start (seconds).
@@ -26,7 +32,7 @@ var Subtitles = (function () {
       if (i >= lines.length) return;   // header, NOTE, STYLE or junk
       var m = /([\d:.,]+)\s*-->\s*([\d:.,]+)/.exec(lines[i]);
       if (!m) return;
-      var text = clean(lines.slice(i + 1).join("\n")).trim();
+      var text = clean(lines.slice(i + 1).join("\n"));
       if (text) cues.push({ start: time(m[1]), end: time(m[2]), text: text });
     });
     cues.sort(function (a, b) { return a.start - b.start; });
@@ -35,7 +41,7 @@ var Subtitles = (function () {
 
   function createRenderer(container) {
     var box = document.createElement("div");
-    box.className = "subs";
+    box.className = "subs empty";
     container.appendChild(box);
     var cues = [], delay = 0, shown = "", maxLen = 10;
 
@@ -45,10 +51,14 @@ var Subtitles = (function () {
       render("");
     }
 
+    // Only real lines get a span: with no dialogue the box is empty and
+    // hidden, so no background box is drawn.
     function render(text) {
       if (text === shown) return;
       shown = text;
       box.textContent = "";
+      box.classList.toggle("empty", !text);
+      if (!text) return;
       text.split("\n").forEach(function (line, i) {
         if (i) box.appendChild(document.createElement("br"));
         var span = document.createElement("span");
@@ -68,7 +78,8 @@ var Subtitles = (function () {
       }
       var out = [];
       for (var i = idx; i >= 0 && cues[i].start >= t - maxLen; i--) {
-        if (cues[i].end > t) out.unshift(cues[i].text);
+        // Some files repeat a line in overlapping cues; show it once.
+        if (cues[i].end > t && out.indexOf(cues[i].text) < 0) out.unshift(cues[i].text);
       }
       render(out.join("\n"));
     }
@@ -85,11 +96,12 @@ var Subtitles = (function () {
         box.classList.add("color-" + color);
       },
       update: update,
+      hasCues: function () { return cues.length > 0; },
       raise: function (on) { box.classList.toggle("raised", !!on); }
     };
   }
 
-  return { parse: parse, createRenderer: createRenderer };
+  return { parse: parse, clean: clean, createRenderer: createRenderer };
 })();
 
 if (typeof module !== "undefined") module.exports = Subtitles;
