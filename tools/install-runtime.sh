@@ -6,21 +6,21 @@
 # Usage: tools/install-runtime.sh        (from the repo root)
 set -e
 here=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-ssh_tv() { ssh lg-tv "$@"; }   # alias from ~/.ssh/config
+ssh_tv() { "$here/bin/tv" "$@"; }   # discover the TV by MAC after DHCP changes
 
 # Updating our scripts should not reinstall binaries or replace server choices.
 if [ "${1:-}" = "--scripts" ]; then
-  tar -C "$here/runtime" -cf - bin/stremio-service bin/stremio-update bin/update.js bin/patch-server.js | ssh_tv 'set -e
+  tar -C "$here/runtime" -cf - bin/stremio-service bin/stremio-update bin/update.js bin/patch-server.js bin/dns-forwarder.js bin/stremio-dns | ssh_tv 'set -e
     R=/media/developer/stremio
     backup=$R/updates/scripts-$(date +%Y%m%d-%H%M%S)
     mkdir -p "$backup/bin" "$backup/new"
-    for name in stremio-service stremio-update update.js patch-server.js; do
-      cp -p "$R/bin/$name" "$backup/bin/$name"
+    for name in stremio-service stremio-update update.js patch-server.js dns-forwarder.js stremio-dns; do
+      if [ -f "$R/bin/$name" ]; then cp -p "$R/bin/$name" "$backup/bin/$name"; fi
     done
     tar -C "$backup/new" -xf -
     chown -R root:root "$backup/new"
     chmod 755 "$backup/new/bin/"*
-    for name in stremio-service stremio-update update.js patch-server.js; do
+    for name in stremio-service stremio-update update.js patch-server.js dns-forwarder.js stremio-dns; do
       mv "$backup/new/bin/$name" "$R/bin/$name"
     done
     echo "Scripts installed; backup: $backup"'
@@ -32,6 +32,7 @@ tar -C "$here/runtime" -cf - bin lib server.js \
   | ssh_tv 'set -e
       R=/media/developer/stremio
       [ -x $R/bin/stremio-service ] && $R/bin/stremio-service stop >/dev/null || true
+      if [ -x $R/bin/stremio-dns ]; then $R/bin/stremio-dns deactivate; fi
       mkdir -p $R.new && tar -C $R.new -xf -
       if [ -d $R/data ]; then mv $R/data $R.new/data; fi
       # Retain updater state and recovery servers across script deployments.
@@ -43,4 +44,5 @@ tar -C "$here/runtime" -cf - bin lib server.js \
 ssh_tv 'R=/media/developer/stremio
   chown -R root:root $R && chmod -R go-w $R && chmod 755 $R/bin/* $R/lib/ld-linux-armhf.so.3
   mkdir -p $R/data && chown nobody $R/data
-  du -sh $R'
+  du -sh $R
+  if [ -f /var/lib/webosbrew/init.d/92-stremio-dns ]; then $R/bin/stremio-dns activate; fi'

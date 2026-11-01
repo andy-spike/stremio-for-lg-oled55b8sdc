@@ -11,22 +11,26 @@
 set -u
 
 TV_MAC="20:3d:bd:f8:eb:7a"
-DEFAULT_IP="192.168.0.9"
+DEFAULT_IP="192.168.0.10"
 
 port_open() { timeout 2 bash -c "</dev/tcp/$1/22" 2>/dev/null; }
 
 find_ip() {
   if port_open "$DEFAULT_IP"; then echo "$DEFAULT_IP"; return 0; fi
   local ip
-  ip=$(ip neigh | awk -v m="$TV_MAC" 'tolower($5)==m {print $1; exit}')
-  if [ -n "$ip" ] && port_open "$ip"; then echo "$ip"; return 0; fi
+  # A DHCP change can leave the old address in the neighbour table as well.
+  for ip in $(ip neigh | awk -v m="$TV_MAC" 'tolower($5)==m {print $1}'); do
+    if port_open "$ip"; then echo "$ip"; return 0; fi
+  done
   # Refresh the neighbour table with a quick ping sweep of the local /24.
   local net
   net=$(ip -4 route | awk '/default/ {print $3; exit}' | cut -d. -f1-3)
   [ -n "$net" ] || return 1
   for i in $(seq 1 254); do ping -c1 -W1 "$net.$i" >/dev/null 2>&1 & done; wait
-  ip=$(ip neigh | awk -v m="$TV_MAC" 'tolower($5)==m {print $1; exit}')
-  if [ -n "$ip" ] && port_open "$ip"; then echo "$ip"; return 0; fi
+  # A DHCP change can leave the old address in the neighbour table as well.
+  for ip in $(ip neigh | awk -v m="$TV_MAC" 'tolower($5)==m {print $1}'); do
+    if port_open "$ip"; then echo "$ip"; return 0; fi
+  done
   return 1
 }
 

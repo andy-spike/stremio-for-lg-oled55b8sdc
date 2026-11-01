@@ -135,3 +135,8 @@ Gotchas found on this TV:
 rm -rf /media/developer/stremio
 luna-send -n 1 luna://com.webos.appInstallService/dev/remove '{"id":"com.local.stremio"}' < /dev/null
 ```
+
+## Optional HTTPS DNS
+
+The B8 has a reversible local DNS-over-HTTPS forwarder to avoid external UDP
+DNS timeouts. See [DNS setup, verification and rollback](dns.md).

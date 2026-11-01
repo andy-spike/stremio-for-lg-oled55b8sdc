@@ -1,0 +1,68 @@
+#!/bin/sh
+# Independent loopback DNS service. Configuration/rollback: tools/configure-dns.sh.
+R=/media/developer/stremio
+PID=/tmp/stremio-dns.pid
+LOG=/tmp/stremio-dns.log
+running() {
+  [ -f "$PID" ] || return 1
+  p=$(cat "$PID" 2>/dev/null) || return 1
+  [ -n "$p" ] && [ -r "/proc/$p/cmdline" ] && tr '\0' ' ' < "/proc/$p/cmdline" 2>/dev/null | grep -q 'stremio-dns supervise'
+}
+case "$1" in
+  activate)
+    "$0" start
+    i=0
+    while ! netstat -lnu | grep -q '127.0.0.2:53 '; do
+      i=$((i + 1)); [ "$i" -ge 10 ] && exit 1
+      sleep 1
+    done
+    conf=$R/updates/dns-resolv.conf
+    target=$(readlink -f /etc/resolv.conf)
+    [ -f "$conf" ] || { printf 'nameserver 127.0.0.2\noptions timeout:3 attempts:2\n' > "$conf"; chmod 644 "$conf"; }
+    if awk -v t="$target" '$2 == t {found=1} END {exit !found}' /proc/mounts; then
+      [ "$(stat -c '%d:%i' "$target")" = "$(stat -c '%d:%i' "$conf")" ] || { echo "Resolver already mounted by another service" >&2; exit 1; }
+    else
+      mount -o bind "$conf" "$target" || exit 1
+      mount -o remount,bind,ro "$conf" "$target" || { umount "$target"; exit 1; }
+    fi
+    ;;
+  deactivate)
+    target=$(readlink -f /etc/resolv.conf)
+    if awk -v t="$target" '$2 == t {found=1} END {exit !found}' /proc/mounts; then
+      [ "$(stat -c '%d:%i' "$target")" = "$(stat -c '%d:%i' "$R/updates/dns-resolv.conf")" ] || exit 1
+      umount "$target" || exit 1
+    fi
+    "$0" stop
+    ip addr del 127.0.0.2/32 dev lo 2>/dev/null || true
+    ;;
+  start)
+    running && exit 0
+    # ConnMan routes DNS hosts via Wi-Fi; an explicit local address keeps ours local.
+    ip addr show lo | grep -q "inet 127.0.0.2/32" || ip addr add 127.0.0.2/32 dev lo
+    start-stop-daemon -S -b -m -p "$PID" -x /usr/bin/python -- -c 'import os,sys; os.closerange(3,65536); os.execv("/bin/sh", ["/bin/sh", sys.argv[1], "supervise"])' "$0"
+    ;;
+  supervise)
+    child=
+    trap 'if [ -n "$child" ]; then kill "$child" 2>/dev/null; wait "$child" 2>/dev/null; fi; rm -f "$PID"; exit 0' TERM INT
+    while :; do
+      [ -f "$LOG" ] && [ "$(wc -c < "$LOG")" -gt 32768 ] && : > "$LOG"
+      "$R/lib/ld-linux-armhf.so.3" --library-path "$R/lib" "$R/bin/node" --max-old-space-size=24 --max-semi-space-size=1 "$R/bin/dns-forwarder.js" >> "$LOG" 2>&1 </dev/null &
+      child=$!
+      wait "$child"
+      child=
+      sleep 5
+    done
+    ;;
+  stop)
+    if running; then
+      kill "$p"
+      i=0
+      while running; do
+        i=$((i + 1)); [ "$i" -ge 5 ] && exit 1
+        sleep 1
+      done
+    fi
+    ;;
+  status) if running; then echo running; else echo stopped; fi ;;
+  *) echo "usage: $0 activate|deactivate|start|stop|status" >&2; exit 2 ;;
+esac

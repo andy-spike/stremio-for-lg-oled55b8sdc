@@ -12,6 +12,8 @@ runtime/bin/*
 !runtime/bin/stremio-update
 !runtime/bin/update.js
 !runtime/bin/patch-server.js
+!runtime/bin/dns-forwarder.js
+!runtime/bin/stremio-dns
 
 # Sample video for preview/player.html (24 MB); any short .webm works
 preview/clip.webm

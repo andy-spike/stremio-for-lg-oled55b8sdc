@@ -9,10 +9,12 @@ Usage:
 (default: com.local.stremio). Promises are awaited. Prints the value
 (strings raw, everything else as JSON) or the exception text.
 """
-import argparse, asyncio, json, sys, urllib.request
+import argparse, asyncio, json, sys, urllib.request, subprocess
+from pathlib import Path
 import websockets
 
-INSPECTOR = "http://192.168.0.9:9998/json"
+TV_IP = subprocess.check_output([str(Path(__file__).resolve().parents[1] / "bin/tv"), "--find"], text=True).strip()
+INSPECTOR = "http://" + TV_IP + ":9998/json"
 
 
 async def evaluate(ws_url, sources):

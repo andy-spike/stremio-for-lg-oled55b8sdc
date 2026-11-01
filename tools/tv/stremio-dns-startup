@@ -1,0 +1,3 @@
+#!/bin/sh
+# Our custom user hook; existing Homebrew hooks are left untouched.
+/media/developer/stremio/bin/stremio-dns activate
