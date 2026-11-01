@@ -48,6 +48,10 @@
       return Promise.resolve({ url: "clip.webm", infoHash: "abc", fileIdx: 0, size: 1.4e9, filename: "Mad.Men.S01E02.mkv" });
     };
     Engine.probe = function () { return Promise.resolve(probe); };
+    if (state === "guess") {   // the file can't be read at first (slow torrent)
+      var probes = 0;
+      Engine.probe = function () { return ++probes <= 2 ? Promise.reject(new Error("Timed out")) : Promise.resolve(probe); };
+    }
     Engine.stats = function () { return Promise.resolve({ peers: 14, downloadSpeed: 3.4e6 }); };
     Engine.opensubHash = function () { return Promise.resolve(null); };
     Engine.subtitleVtt = function () { return Promise.resolve("WEBVTT\n\n00:00:00.000 --> 01:00:00.000\nI'm not going to tell you again,\nkeep that door shut."); };

@@ -42,6 +42,11 @@ libraries are never touched.
 | DTS (or other audio the TV lacks) | The server re-encodes only the audio to AAC 5.1; video is copied. Played with hls.js (Stremio's build), because the TV's own HLS player can't read fragmented-MP4 HLS. |
 | AV1 and other video the TV can't decode | Not converted (this CPU is too slow); the app says so and suggests another stream. |
 
+Before playing, the server reads the file (ffprobe) to learn its codecs. If a
+slow torrent doesn't deliver enough of it in time, the app guesses from the file
+name and stream title ("DTS", "x265" ...) and reads the file again once playback
+has started, switching to audio conversion then if it's needed.
+
 Addon subtitles (OpenSubtitles) are converted to WebVTT by the server and drawn by the app.
 
 ## Privacy

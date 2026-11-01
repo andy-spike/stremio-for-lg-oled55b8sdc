@@ -148,9 +148,19 @@ var Player = (function () {
         info = r;
         if (info.infoHash) watchStats(info.infoHash, info.fileIdx);
         status("Reading the file…");
-        return Engine.probe(info.url).then(function (p) { return p; }, function () { return null; });
+        // One retry (a slow torrent may have more of the file by then); then
+        // guess from the names, and read it again once it's playing.
+        return Engine.probe(info.url).then(null, function () {
+          if (closed) return null;
+          status("Still reading the file…");
+          return Engine.probe(info.url, 30000);
+        }).then(null, function () { return null; });
       }).then(function (probe) {
         if (closed || !info) return;
+        if (!probe) {
+          var hints = stream.behaviorHints || {};
+          probe = Engine.guessProbe([info.filename, hints.filename, stream.name, stream.title, stream.description].join(" "));
+        }
         plan = Engine.plan({ probe: probe }, U.load("prefAudioLang", ""));
         audioIdx = again && plan.audio[again.audio] ? again.audio : plan.audioIdx;
         var startMode = again && again.mode === "convert" && plan.canConvert ? "convert" : plan.mode;
@@ -165,6 +175,7 @@ var Player = (function () {
         }
         load(startMode, resumeAt || 0, audioIdx);
         loadAddonSubs();
+        if (plan.guessed) reprobe();
       }).catch(function (e) {
         if (closed) return;
         var torrent = stream.infoHash || /^magnet:/.test(stream.url || "");
@@ -172,6 +183,37 @@ var Player = (function () {
           ? "Nobody is sharing this torrent right now (no peers found in 60 seconds). Try another stream — ones with more seeders start faster."
           : e.message || "Couldn't start this stream.");
       });
+    }
+
+    // The codecs were guessed from the names: read the file again once it
+    // plays (the start of it is downloaded by then, so this is quick). If
+    // the audio turns out to need conversion, switch to it where we are.
+    function reprobe() {
+      var forInfo = info, tries = 0;
+      function stale() { return closed || info !== forInfo || !plan || !plan.guessed; }
+      (function attempt() {
+        if (stale()) return;
+        if (!playingSeen) { setTimeout(attempt, 2000); return; }
+        Engine.probe(info.url, 30000).then(function (p) {
+          if (stale()) return;
+          var real = Engine.plan({ probe: p }, U.load("prefAudioLang", ""));
+          plan = real;
+          var failed = !errorView.classList.contains("hidden");
+          if (mode === "direct" && real.mode === "convert" && !failed) {
+            var a = real.audio[real.audioIdx];
+            load("convert", pos(), real.audioIdx);
+            App.toast("This file has " + a.codec.toUpperCase() + " audio — converting it for this TV…", 5000);
+            return;
+          }
+          if (!real.audio[audioIdx]) audioIdx = 0;
+          if (mode === "direct") {
+            audioIdx = real.audioIdx;
+            if (mediaId && real.audio.length > 1) Luna.media("selectTrack", { type: "audio", mediaId: mediaId, index: audioIdx });
+          }
+          showInfo();
+          if (subSel.kind === "off") { autoDone = false; autoSubs(); }
+        }, function () { if (++tries < 3) setTimeout(attempt, 10000); });
+      })();
     }
 
     function watchStats(infoHash, fileIdx) {
@@ -478,6 +520,7 @@ var Player = (function () {
               Luna.media("selectTrack", { type: "text", mediaId: mediaId, index: subSel.index });
               Luna.media("setSubtitleFontSize", { mediaId: mediaId, fontSize: Math.min(3, subSize) });
               tvSubStyle();
+              tvSubSync();
             }, 500);
           });
         } else Luna.media("setSubtitleEnable", { mediaId: mediaId, enable: false });
@@ -560,7 +603,7 @@ var Player = (function () {
           var ch = a.channels ? channels(a.channels) : "";
           var name = U.langName(a.lang) || "Track " + (i + 1);
           item(name, [a.title && a.title.toLowerCase() !== name.toLowerCase() ? a.title : "", a.codec.toUpperCase() + " " + ch,
-            a.native ? "" : plan.canConvert ? "converted" : "not supported"].filter(Boolean).join(" · "),
+            a.native ? "" : plan.canConvert ? "converted" : "not supported", a.guessed ? "from the file name" : ""].filter(Boolean).join(" · "),
             i === audioIdx, function () { selectAudio(i); closeMenu(); });
         });
       } else {
@@ -612,6 +655,10 @@ var Player = (function () {
         var delay = stepper("Delay", delayText(), function (d) {
           subDelay = Math.round((subDelay + d * 0.25) * 100) / 100;
           subs.setDelay(subDelay);
+          tvSubSync();
+          if (subDelay < -2 && mode === "direct" && subSel.kind === "embedded" && d < 0) {
+            App.toast("The TV can show subtitles from the file at most about 2 s early.");
+          }
           return delayText();
         });
         var bgRow = stepper("Background", SUB_BGS[subBg].name, function (d) {
@@ -643,6 +690,14 @@ var Player = (function () {
     function applySubStyle() {
       subs.setStyle(SUB_BGS[subBg].id, SUB_COLORS[subColor].id);
       tvSubStyle();
+    }
+    // Delay for subtitles the TV draws itself (embedded tracks in direct
+    // play). setSubtitleSync takes milliseconds; positive shows them earlier,
+    // ours is the opposite. Measured on this TV: later works for any amount,
+    // earlier only up to ~2 s (the TV reads subtitles just ahead of the video).
+    function tvSubSync() {
+      if (mode !== "direct" || !mediaId || subSel.kind !== "embedded") return;
+      Luna.media("setSubtitleSync", { mediaId: mediaId, sync: -Math.round(subDelay * 1000) });
     }
     function tvSubStyle() {
       if (mode !== "direct" || !mediaId) return;

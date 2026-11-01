@@ -122,14 +122,27 @@ var Engine = (function () {
   }
 
   // ffprobe through the server: container, codecs and tracks.
-  function probe(mediaUrl) {
-    return U.request(SERVER + "/hlsv2/probe?mediaURL=" + encodeURIComponent(mediaUrl), { timeout: 45000 });
+  function probe(mediaUrl, timeout) {
+    return U.request(SERVER + "/hlsv2/probe?mediaURL=" + encodeURIComponent(mediaUrl), { timeout: timeout || 45000 });
+  }
+
+  // When the file can't be read in time (a slow torrent), guess its codecs
+  // from the file name and stream title ("x265", "DTS-HD MA" ...), so DTS
+  // still gets converted. The player reads the file again once it plays.
+  function guessProbe(text) {
+    var t = String(text || "").toLowerCase();
+    function has(re) { return new RegExp("(^|[^a-z0-9])(" + re + ")").test(t); }
+    var video = has("av1") ? "av1" : has("vp9") ? "vp9" : has("x265|h\\.?265|hevc") ? "hevc" : "h264";
+    var streams = [{ track: "video", codec: video }];
+    if (has("dts")) streams.push({ track: "audio", codec: "dts" });
+    return { streams: streams, guessed: true };
   }
 
   // Decide how to play. audioIndex is the wanted audio track (position among
   // audio streams) or -1 for "pick by preference".
   function plan(info, audioLang) {
     var streams = info.probe ? info.probe.streams : [];
+    var guessed = !!(info.probe && info.probe.guessed);
     var video = streams.filter(function (s) { return s.track === "video"; })[0];
     var audio = streams.filter(function (s) { return s.track === "audio"; });
     var subs = streams.filter(function (s) { return s.track === "subtitle"; });
@@ -147,12 +160,13 @@ var Engine = (function () {
       video: video || null,
       audio: audio.map(function (a, i) {
         return { index: i, codec: a.codec, lang: a.language, title: a.title, channels: a.channels,
-          native: caps.audio.indexOf(a.codec) >= 0 };
+          native: caps.audio.indexOf(a.codec) >= 0, guessed: guessed };
       }),
       audioIdx: audioIdx,
       subs: subs.map(function (s, i) { return { index: i, codec: s.codec, lang: s.language, title: s.title,
         text: ["subrip", "ass", "ssa", "webvtt", "mov_text", "text"].indexOf(s.codec) >= 0 }; }),
       canConvert: canConvert,
+      guessed: guessed,
       videoUnsupported: !!video && caps.video.indexOf(video.codec) < 0
     };
   }
@@ -187,6 +201,6 @@ var Engine = (function () {
     return U.request(SERVER + path + "/stats.json", { timeout: 4000 }).catch(function () { return null; });
   }
 
-  return { caps: caps, detectCaps: detectCaps, ensure: ensure, alive: alive, resolve: resolve, probe: probe,
+  return { caps: caps, detectCaps: detectCaps, ensure: ensure, alive: alive, resolve: resolve, probe: probe, guessProbe: guessProbe,
     plan: plan, hlsUrl: hlsUrl, hlsDestroy: hlsDestroy, opensubHash: opensubHash, subtitleVtt: subtitleVtt, stats: stats };
 })();
