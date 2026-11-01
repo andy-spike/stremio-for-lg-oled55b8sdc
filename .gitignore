@@ -1,16 +1,22 @@
-# Python tooling
+# Build output (tools/build-ipk.py)
+dist/
+
+# runtime/ mirrors /media/developer/stremio on the TV. Only our own files
+# are tracked; the ~140 MB of third-party binaries are local-only.
+# Sources: runtime/README.md.
+runtime/*
+!runtime/README.md
+!runtime/bin/
+runtime/bin/*
+!runtime/bin/stremio-service
+
+# Sample video for preview/player.html (24 MB); any short .webm works
+preview/clip.webm
+
+# Python / OS / editor
 .venv/
 __pycache__/
-
-# Build output: tools/build-ipk.py regenerates these
-*.ipk
-
-# Runtime binaries copied to the TV (~140 MB). Third-party, not ours;
-# see "Runtime binaries" in README.md for where each comes from.
-runtime/bin/
-runtime/lib/
-# Stremio's server.js after tools/patch-server.py (6.4 MB, generated)
-runtime/server.js
-
-# Sample video for the preview pages (24 MB); any short .webm works
-preview/clip.webm
+*.pyc
+.DS_Store
+.vscode/
+.idea/

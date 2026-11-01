@@ -1,4 +1,4 @@
-// node tools/test-subtitles.js — checks the VTT parser and cue lookup.
+// node tests/subtitles.test.js — checks the VTT parser and cue lookup.
 const S = require("../app/js/subtitles.js");
 const vtt = `WEBVTT
 

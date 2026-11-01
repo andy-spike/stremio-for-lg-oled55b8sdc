@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# SSH into the LG TV as root. Usage:
+#   bin/tv                 interactive shell
+#   bin/tv 'cmd ...'       run a command
+#   bin/tv --check         verify connectivity (exit 0 = OK)
+#   bin/tv --find          print the TV's current IP
+#
+# Uses the `lg-tv` alias from ~/.ssh/config. If the TV is not at its usual
+# address (DHCP changed it), finds it on the LAN by MAC address and connects
+# there instead. The host key is pinned by alias, so a new IP still verifies.
+set -u
+
+TV_MAC="20:3d:bd:f8:eb:7a"
+DEFAULT_IP="192.168.0.9"
+
+port_open() { timeout 2 bash -c "</dev/tcp/$1/22" 2>/dev/null; }
+
+find_ip() {
+  if port_open "$DEFAULT_IP"; then echo "$DEFAULT_IP"; return 0; fi
+  local ip
+  ip=$(ip neigh | awk -v m="$TV_MAC" 'tolower($5)==m {print $1; exit}')
+  if [ -n "$ip" ] && port_open "$ip"; then echo "$ip"; return 0; fi
+  # Refresh the neighbour table with a quick ping sweep of the local /24.
+  local net
+  net=$(ip -4 route | awk '/default/ {print $3; exit}' | cut -d. -f1-3)
+  [ -n "$net" ] || return 1
+  for i in $(seq 1 254); do ping -c1 -W1 "$net.$i" >/dev/null 2>&1 & done; wait
+  ip=$(ip neigh | awk -v m="$TV_MAC" 'tolower($5)==m {print $1; exit}')
+  if [ -n "$ip" ] && port_open "$ip"; then echo "$ip"; return 0; fi
+  return 1
+}
+
+ip=$(find_ip) || {
+  echo "TV not reachable on SSH (port 22). Is it powered on and on Wi-Fi/LAN?" >&2
+  echo "Expected MAC $TV_MAC, usual IP $DEFAULT_IP." >&2
+  exit 2
+}
+
+case "${1:-}" in
+  --find) echo "$ip"; exit 0 ;;
+  --check)
+    ssh -o BatchMode=yes -o HostName="$ip" lg-tv 'echo "connected: $(hostname) as $(id -un), up $(uptime)"'
+    exit $? ;;
+esac
+
+[ "$ip" != "$DEFAULT_IP" ] && echo "note: TV found at $ip (not $DEFAULT_IP)" >&2
+exec ssh -o HostName="$ip" lg-tv "$@"

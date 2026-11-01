@@ -1,4 +1,4 @@
-"""Builds com.local.stremio_<version>_all.ipk from app/ (version from appinfo.json).
+"""Builds dist/com.local.stremio_<version>_all.ipk from app/ (version from appinfo.json).
 
 Usage: python3 -I tools/build-ipk.py
 Install on the TV: copy to /tmp, then
@@ -51,6 +51,7 @@ for name, body in members:
     out.write(body)
     if len(body) % 2:
         out.write(b"\n")
-p = here / f"{appid}_{version}_all.ipk"
+(here / "dist").mkdir(exist_ok=True)
+p = here / "dist" / f"{appid}_{version}_all.ipk"
 p.write_bytes(out.getvalue())
 print(p, p.stat().st_size)

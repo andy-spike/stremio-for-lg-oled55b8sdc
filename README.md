@@ -4,13 +4,17 @@ A Stremio client for this TV: your account, addons, library and Continue
 Watching, torrent and HTTP streams, audio-track and subtitle selection, and
 DTS audio conversion (this TV can't decode DTS).
 
-## Pieces
+## Layout
 
-| Where | What |
+| Path | What |
 |---|---|
-| `app/` → TV app `com.local.stremio` | The interface. Plain JS for Chromium 53 (no build step). |
-| `runtime/` → `/media/developer/stremio` on the TV | Node 16 (hard-float build), a private hard-float glibc runtime (Debian 10), static ffmpeg 7.0.2, Stremio's official `server.js` 4.20.19 (patched, see below), and `bin/stremio-service`. Owned by root. |
-| `service/stremio-service` | Starts/stops the server. The app runs it through Homebrew Channel's root exec. |
+| `app/` | The TV app `com.local.stremio`. Plain JS for Chromium 53, no build step. `app/lib/` is vendored hls.js. |
+| `runtime/` | Mirror of `/media/developer/stremio` on the TV: Node 16 (hard-float), a private hard-float glibc (Debian 10), static ffmpeg 7.0.2, Stremio's patched `server.js` 4.20.19, and our `bin/stremio-service`, which starts/stops the server (the app runs it through Homebrew Channel's root exec). Only `stremio-service` is in git; [`runtime/README.md`](runtime/README.md) lists where the rest comes from. |
+| `tools/` | Build, install and debug scripts. |
+| `tests/` | `node tests/subtitles.test.js` checks the VTT parser. |
+| `preview/` | Desktop mock pages of the app screens and player, with sample art. `clip.webm` (sample video) is gitignored; drop in any short `.webm`. |
+| `bin/tv` | SSH helper for the TV (`bin/tv --check`, `bin/tv 'cmd'`). |
+| `dist/` | Built `.ipk` files (gitignored). |
 
 Why the private runtime: the TV's system is soft-float (`/lib/ld-linux.so.3`)
 and official Node builds are hard-float, so Node runs through its own loader
@@ -51,16 +55,17 @@ sends none of the analytics the official apps send (`Events`, `SeekLog`,
 ```sh
 python3 -I tools/patch-server.py <official server.js> runtime/server.js
 tools/install-runtime.sh                 # runtime -> /media/developer/stremio
-python3 -I tools/build-ipk.py            # -> com.local.stremio_<version>_all.ipk
-# copy the .ipk to /tmp on the TV, then:
-luna-send -n 1 luna://com.webos.appInstallService/dev/install \
-  '{"id":"com.ares.defaultName","ipkUrl":"/tmp/stremio.ipk","subscribe":true}' < /dev/null
+python3 -I tools/build-ipk.py            # -> dist/com.local.stremio_<version>_all.ipk
+bin/tv 'cat > /tmp/stremio.ipk' < dist/com.local.stremio_<version>_all.ipk
+bin/tv 'luna-send -n 1 luna://com.webos.appInstallService/dev/install \
+  "{\"id\":\"com.ares.defaultName\",\"ipkUrl\":\"/tmp/stremio.ipk\",\"subscribe\":true}" < /dev/null'
 ```
+
+Bump `version` in `app/appinfo.json` for each release.
 
 Debugging: `tools/cdp.py -e 'expr'` evaluates JS in the app through the TV's
 inspector (:9998); `tools/cdp-shot.py out.jpg` takes a screenshot (pages with a
-full-screen backdrop can't be captured). `node tools/test-subtitles.js` tests
-the VTT parser.
+full-screen backdrop can't be captured). Both need `pip install websockets`.
 
 Gotchas found on this TV:
 - `luna-send` over SSH prints nothing unless stdin is `/dev/null`.
@@ -76,22 +81,3 @@ Gotchas found on this TV:
 rm -rf /media/developer/stremio
 luna-send -n 1 luna://com.webos.appInstallService/dev/remove '{"id":"com.local.stremio"}' < /dev/null
 ```
-
-## Runtime binaries (not in git)
-
-`runtime/bin/`, `runtime/lib/` and `runtime/server.js` are gitignored
-(~140 MB of third-party files). To rebuild `runtime/`:
-
-| Path | Source |
-|---|---|
-| `runtime/bin/node` | Official Node 16 `linux-armv7l` build (hard-float) |
-| `runtime/lib/*` | Debian 10 (buster) `armhf` glibc, libstdc++, libgcc, libatomic |
-| `runtime/bin/ffmpeg`, `ffprobe` | Static armhf ffmpeg 7.0.2 |
-| `runtime/server.js` | Stremio's official `server.js` 4.20.19, run through `tools/patch-server.py` |
-
-The installed copy is on the TV at `/media/developer/stremio`. A full local
-copy of the earlier project, binaries included, is in
-`~/backups/lg-tv-legacy-2026-10-31.tar.gz`.
-
-`preview/clip.webm` (sample video for `preview/player.html`) is also ignored;
-drop in any short `.webm`.

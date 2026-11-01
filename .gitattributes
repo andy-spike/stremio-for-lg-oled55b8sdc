@@ -1,0 +1,7 @@
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.webm binary
+*.ipk binary
+# Third-party, minified: keep out of GitHub language stats and diffs
+app/lib/** linguist-vendored -diff
