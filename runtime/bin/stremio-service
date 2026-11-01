@@ -14,6 +14,7 @@
 # IDLE_LIMIT seconds, so nothing keeps downloading after you close the app.
 
 ROOT=/media/developer/stremio
+UPD=$ROOT/updates
 PIDFILE=/tmp/stremio-server.pid
 WATCHPID=/tmp/stremio-watchdog.pid
 LOG=/tmp/stremio-server.log
@@ -56,6 +57,30 @@ watchdog() {
   done
 }
 
+start_server() {
+  start-stop-daemon -S -b -m -p "$PIDFILE" -x /usr/bin/python -- -c 'import os,sys; os.closerange(3,65536); os.execv("/bin/sh", ["/bin/sh"] + sys.argv[1:])' "$0" run-server
+}
+
+# True if something listens on the server's ports (11470-11474, hex
+# 2CCE-2CD2) on an address other than 127.0.0.1.
+exposed() {
+  awk '$4 == "0A" && $2 ~ /:2C(CE|CF|D0|D1|D2)$/ && $2 !~ /^0100007F:/' /proc/net/tcp /proc/net/tcp6 2>/dev/null | grep -q .
+}
+
+# Waits up to 60 s for the server to answer on 127.0.0.1 only.
+answers() {
+  i=0
+  while [ $i -lt 60 ]; do
+    if curl -s -o /dev/null --max-time 2 http://127.0.0.1:11470/settings; then
+      exposed && return 1
+      return 0
+    fi
+    server_pid >/dev/null || [ $i -lt 3 ] || return 1   # it exited
+    sleep 1; i=$((i + 1))
+  done
+  return 1
+}
+
 stop_server() {
   pid=$(server_pid) && kill "$pid" 2>/dev/null
   rm -f "$PIDFILE"
@@ -79,7 +104,22 @@ case "$1" in
     if ! server_pid >/dev/null; then
       mkdir -p "$ROOT/data" && chown nobody "$ROOT/data"
       : > "$LOG"
-      start-stop-daemon -S -b -m -p "$PIDFILE" -x /usr/bin/python -- -c 'import os,sys; os.closerange(3,65536); os.execv("/bin/sh", ["/bin/sh"] + sys.argv[1:])' "$0" run-server
+      start_server
+      # A just-updated server (bin/update.js) must answer before it counts as
+      # good; if it doesn't, go back to the previous one and skip this version.
+      if [ -f "$UPD/pending" ]; then
+        if answers; then
+          rm -f "$UPD/pending"
+        elif [ -f "$UPD/server.prev.js" ]; then
+          echo "server $(cat "$UPD/pending") did not start; going back" >> "$UPD/log"
+          stop_server
+          cat "$UPD/pending" >> "$UPD/skip"
+          mv "$UPD/server.prev.js" "$ROOT/server.js"
+          rm -f "$UPD/pending"
+          : > "$LOG"
+          start_server
+        fi
+      fi
     fi
     if ! watchdog_pid >/dev/null; then
       start-stop-daemon -S -b -m -p "$WATCHPID" -x /usr/bin/python -- -c 'import os,sys; os.closerange(3,65536); os.execv("/bin/sh", ["/bin/sh"] + sys.argv[1:])' "$0" watchdog

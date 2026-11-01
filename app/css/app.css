@@ -212,6 +212,8 @@ input.focus { border-color: #fff; }
 .dot { width: 0.7vw; height: 0.7vw; border-radius: 50%; background: var(--muted); margin-right: 0.7vw; }
 .dot.ok { background: #4ade80; }
 .settings .btn { margin: 0.8vw 0 0.4vw; }
+.setting-buttons { display: flex; flex-wrap: wrap; min-height: 4.4vw; }
+.setting-buttons .btn { margin-right: 1vw; }
 .shint { margin: -0.4vw 0 1.6vw; font-size: 1.2vw; color: var(--muted); max-width: 50vw; line-height: 1.4; }
 .setting.toggle .tcheck { width: 1.5vw; height: 1.5vw; visibility: hidden; color: var(--accent); }
 .setting.toggle.on .tcheck { visibility: visible; }

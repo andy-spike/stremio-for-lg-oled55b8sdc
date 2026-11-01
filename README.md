@@ -24,7 +24,7 @@ libraries are never touched.
 ## How the server runs
 
 - As user `nobody`, listening on `127.0.0.1:11470` only (patched in
-  `tools/patch-server.py`; the patch also lets `file://` app pages use CORS).
+  `runtime/bin/patch-server.js`; the patch also lets `file://` app pages use CORS).
 - `DISABLE_CACHING=1`: torrent data stays in a ~45 MB RAM buffer, never on the
   TV's flash storage. Stremio's own TV build does the same. A disk cache would
   not help here: the server never trims the torrent being watched, so one large
@@ -52,16 +52,43 @@ has started, switching to audio conversion then if it's needed.
 
 Addon subtitles (OpenSubtitles) are converted to WebVTT by the server and drawn by the app.
 
+## Updates
+
+**Server: automatic.** Once a day (and from Settings > Updates > Check for
+updates) the app runs `bin/stremio-update server` on the TV, in the background:
+
+1. Find the newest server. Stremio publishes each version at
+   `dl.strem.io/server/v<version>/desktop/server.js` with no "latest"
+   pointer, so the updater tries the next version numbers.
+2. Download it, apply `patch-server.js`, and syntax-check the result. If the
+   patch doesn't fit (Stremio changed that code), nothing changes.
+3. Put it in place, keeping the old one as `updates/server.prev.js`, and mark
+   it `updates/pending`. The app restarts the server unless something is playing.
+4. On its next start, `stremio-service` waits for the new server to answer
+   on 127.0.0.1 only. If it doesn't, or if it listens on the network, the
+   previous server comes back and that version is skipped from then on.
+
+Settings > Updates > "Switch to server X" swaps the current and the previous
+server (going back skips the newer one until you check for updates again).
+
+**App: when asked.** The app reads this repo's GitHub releases. When one is
+newer, it says so; "Install app X" downloads its `.ipk` on the TV and installs
+it (the app closes and opens again). "Go back to app X" installs the previous
+release. `tools/release.sh` publishes a release.
+
+Progress: `/tmp/stremio-update.json`; log: `/tmp/stremio-update.log`.
+
 ## Privacy
 
-The app talks to `api.strem.io` only for sign-in, addons and library sync. It
+The app talks to `api.strem.io` only for sign-in, addons and library sync,
+and to GitHub and `dl.strem.io` only for updates. It
 sends none of the analytics the official apps send (`Events`, `SeekLog`,
 `SkipGaps`).
 
 ## Build and install
 
 ```sh
-python3 -I tools/patch-server.py <official server.js> runtime/server.js
+node runtime/bin/patch-server.js <official server.js> runtime/server.js
 tools/install-runtime.sh                 # runtime -> /media/developer/stremio
 tools/deploy.sh                          # build -> dist/, install on the TV, open the app
 ```

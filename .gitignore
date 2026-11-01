@@ -9,6 +9,9 @@ runtime/*
 !runtime/bin/
 runtime/bin/*
 !runtime/bin/stremio-service
+!runtime/bin/stremio-update
+!runtime/bin/update.js
+!runtime/bin/patch-server.js
 
 # Sample video for preview/player.html (24 MB); any short .webm works
 preview/clip.webm

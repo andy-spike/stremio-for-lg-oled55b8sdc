@@ -1,0 +1,59 @@
+#!/bin/sh
+# Updates the Stremio streaming server and the app. The app calls it through
+# Homebrew Channel's root exec service; the work is done by update.js.
+#
+#   stremio-update status          print the update state as JSON
+#   stremio-update server [force]  in the background: install a newer server
+#                                  if there is one (force: even a skipped one)
+#   stremio-update switch-server   swap the server for the previous one
+#   stremio-update app <version>   in the background: install that app release
+#
+# Background tasks report progress in /tmp/stremio-update.json (shown by
+# status) and log to /tmp/stremio-update.log.
+
+ROOT=/media/developer/stremio
+PIDFILE=/tmp/stremio-update.pid
+LOG=/tmp/stremio-update.log
+
+node() { "$ROOT/lib/ld-linux-armhf.so.3" --library-path "$ROOT/lib" "$ROOT/bin/node" "$@"; }
+
+busy() {
+  [ -f "$PIDFILE" ] || return 1
+  pid=$(cat "$PIDFILE")
+  [ -n "$pid" ] && [ -d "/proc/$pid" ] && grep -q update.js "/proc/$pid/cmdline" 2>/dev/null
+}
+
+# Same detaching as stremio-service: close Homebrew Channel's inherited
+# descriptors, or the exec call never returns.
+background() {
+  if busy; then echo busy; exit 0; fi
+  [ -f "$LOG" ] && [ "$(wc -c < "$LOG")" -gt 262144 ] && : > "$LOG"
+  start-stop-daemon -S -b -m -p "$PIDFILE" -x /usr/bin/python -- -c 'import os,sys; os.closerange(3,65536); os.execv("/bin/sh", ["/bin/sh"] + sys.argv[1:])' "$0" run "$@"
+  echo started
+}
+
+case "$1" in
+  status)
+    node "$ROOT/bin/update.js" status 2>/dev/null | sed "s/}\$/,\"busy\":$(busy && echo true || echo false)}/"
+    ;;
+  server)
+    case "$2" in ""|force) background server $2 ;; *) exit 2 ;; esac
+    ;;
+  switch-server)
+    if busy; then echo '{"ok":false,"error":"busy"}'; exit 1; fi
+    node "$ROOT/bin/update.js" switch-server 2>/dev/null
+    ;;
+  app)
+    case "$2" in *[!0-9.]*|"") exit 2 ;; *) background app "$2" ;; esac
+    ;;
+  run)
+    # Internal: replaced by node, so the pidfile holds its pid.
+    shift
+    exec "$ROOT/lib/ld-linux-armhf.so.3" --library-path "$ROOT/lib" "$ROOT/bin/node" \
+      --max-old-space-size=96 "$ROOT/bin/update.js" "$@" >> "$LOG" 2>&1 < /dev/null
+    ;;
+  *)
+    echo "usage: $0 status|server [force]|switch-server|app <version>" >&2
+    exit 2
+    ;;
+esac

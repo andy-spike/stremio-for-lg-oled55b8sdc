@@ -716,11 +716,74 @@ var Screens = (function () {
   function settings() {
     var serverState = el("span.value", { text: tr("Checking…") });
     var versionEl = el("span.value", { text: "" });
-    // fetch() can't read file:// (where webOS apps live); XHR can.
-    var x = new XMLHttpRequest();
-    x.onload = function () { try { versionEl.textContent = JSON.parse(x.responseText).version; } catch (e) { /* leave blank */ } };
-    x.open("GET", "appinfo.json");
-    x.send();
+    Updates.current().then(function (v) { versionEl.textContent = v || ""; });
+    // Updates: the server updates itself; the app installs when asked.
+    var updText = el("span.value", { text: tr("Checking…") });
+    var updRow = info("Status", updText);
+    var updButtons = el("div.setting-buttons");
+    var busy = false;
+    function say(text) { updText.textContent = text; }
+    function progressText(p) {
+      if (!p) return "";
+      var v = { version: p.version || p.latest || "" };
+      if (p.task === "app") {
+        if (p.state === "downloading") return tr("Downloading app {version}…", v);
+        if (p.state === "installing") return tr("Installing app {version}. The app will close and open again.", v);
+        if (p.state === "failed") return tr("Couldn't install app {version}.", v);
+        return "";
+      }
+      if (p.state === "checking") return tr("Checking for a newer server…");
+      if (p.state === "downloading" || p.state === "verifying") return tr("Downloading server {version}…", v);
+      if (p.state === "installed") return tr("Server updated to {version}", v);
+      if (p.state === "failed") return tr("Couldn't update the server. The current one stays.");
+      if (p.state === "switched") return tr("Now using server {version}", v);
+      return "";
+    }
+    // Rebuilds the buttons, keeping focus in the section if it was there.
+    function setButtons(list) {
+      var had = updButtons.contains(document.activeElement) || updButtons.contains(Nav.current());
+      U.clear(updButtons);
+      list.forEach(function (b) { if (b) updButtons.appendChild(b); });
+      if (had) App.refocus(updButtons.querySelector(".focusable") || updRow);
+    }
+    function run(promise) {
+      busy = true;
+      setButtons([]);
+      return promise.then(function (r) { busy = false; refreshUpdates(); return r; },
+        function () { busy = false; say(tr("Couldn't check for updates.")); refreshUpdates(true); });
+    }
+    function refreshUpdates(keepText) {
+      if (busy) return;
+      U.settle([Updates.status(), Updates.appState()]).then(function (r) {
+        if (busy) return;
+        var st = r[0], app = r[1];
+        if (st) { serverVersion = st.server || ""; showServer(); }
+        if (!keepText) {
+          var text = st && progressText(st.progress);
+          if (!text || (st.progress && st.progress.state === "uptodate")) text = app && app.latest ? tr("App update {version} is available", { version: app.latest })
+            : st ? tr("Up to date. The server updates itself.") : tr("Couldn't check for updates.");
+          if (st && st.progress && st.progress.state === "skipped") text = tr("Server {version} is skipped. Check for updates to install it.", { version: st.progress.latest });
+          say(text);
+        }
+        setButtons([
+          app && app.latest ? button(tr("Install app {version}", { version: app.latest }), function () {
+            run(Updates.installApp(app.latest, function (s) { say(progressText(s.progress)); }));
+          }, "primary", "download") : null,
+          button(tr("Check for updates"), function () {
+            say(tr("Checking for updates…"));
+            run(Updates.updateServer(true, function (s) { say(progressText(s.progress) || tr("Checking for updates…")); }));
+          }, "", "retry"),
+          st && st.previous ? button(tr("Switch to server {version}", { version: st.previous }), function () {
+            say(tr("Switching server…"));
+            run(Updates.switchServer());
+          }, "", "server") : null,
+          app && app.previous ? button(tr("Go back to app {version}", { version: app.previous }), function () {
+            U.save("appSkip", app.current);   // don't suggest the version we left
+            run(Updates.installApp(app.previous, function (s) { say(progressText(s.progress)); }));
+          }, "", "back") : null
+        ]);
+      });
+    }
     var u = Account.user();
     var subLangRow = el("div.setting.focusable", {}, [el("span", { text: tr("Subtitle languages") }), el("span.value", { text: subLangsLabel() })]);
     subLangRow.onactivate = function () { App.push(subLanguages()); };
@@ -751,15 +814,24 @@ var Screens = (function () {
       el("h2", { text: tr("About") }),
       info("Streaming server", serverState),
       info("Addons", el("span.value", { text: Addons.all().map(function (a) { return a.manifest.name; }).join(", ") })),
-      info("Version", versionEl)
+      info("Version", versionEl),
+      el("h2", { text: tr("Updates") }),
+      updRow,
+      updButtons
     ];
     // Read-only rows still take focus, so the arrows reach (and scroll to) them.
     function info(label, value) { return el("div.setting.info.focusable", {}, [el("span", { text: tr(label) }), value]); }
     var s = { el: screen("settings", [topBar("settings"), el("div.page.vscroll", {}, el("div.settings", {}, rows))]) };
-    Engine.alive().then(function (ok) {
-      U.clear(serverState).appendChild(el("span.dot" + (ok ? ".ok" : "")));
-      serverState.appendChild(document.createTextNode(tr(ok ? "Running" : "Stopped · starts when you play something")));
-    });
+    var serverVersion = "";
+    function showServer() {
+      Engine.alive().then(function (ok) {
+        U.clear(serverState).appendChild(el("span.dot" + (ok ? ".ok" : "")));
+        serverState.appendChild(document.createTextNode(tr(ok ? "Running" : "Stopped · starts when you play something") +
+          (serverVersion ? " · " + serverVersion : "")));
+      });
+    }
+    showServer();
+    refreshUpdates();
     s.key = function (code) {
       var c = Nav.current();
       if (c && c.step && (code === KEY.LEFT || code === KEY.RIGHT)) { c.step(code === KEY.LEFT ? -1 : 1); return true; }

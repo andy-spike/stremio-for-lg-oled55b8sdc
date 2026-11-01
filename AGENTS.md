@@ -19,7 +19,9 @@ go out with `tools/install-runtime.sh` instead.
 ## Commit as you go
 
 Commit each finished feature or fix as its own commit (with the version
-bump that shipped it) and push, without waiting to be asked.
+bump that shipped it) and push, without waiting to be asked. Then run
+`tools/release.sh`: it publishes that version as a GitHub release, which is
+where the TV's "Install app" update comes from.
 
 ## Code
 
@@ -31,8 +33,12 @@ bump that shipped it) and push, without waiting to be asked.
   needs a row in `app/js/i18n.js` (Spanish, French, German, Portuguese).
   Preview a language with `?lang=es` on the preview pages.
 - `app/lib/` is vendored hls.js. Don't edit it.
-- `runtime/` mirrors `/media/developer/stremio` on the TV. Only
-  `runtime/bin/stremio-service` is ours and tracked; the rest is gitignored.
+- `runtime/` mirrors `/media/developer/stremio` on the TV. Only our scripts
+  in `runtime/bin/` (`stremio-service`, `stremio-update`, `update.js`,
+  `patch-server.js`) are tracked; the rest is gitignored. `runtime/bin/*.js`
+  runs on the TV's Node 16, so it may use modern JS.
+- The TV updates its streaming server by itself (`stremio-update`); the
+  installed `server.js` may be newer than `runtime/server.js`.
 - Bump `version` in `app/appinfo.json` when shipping a change.
 - Tests: `node tests/subtitles.test.js` and `node tests/account.test.js`. Mock pages for screen work:
   `preview/screens.html`, `preview/player.html`.

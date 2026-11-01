@@ -120,6 +120,7 @@ var App = (function () {
     U.migrateLastStreams();
     Engine.detectCaps();
     Engine.ensure().catch(function (e) { toast(e.message, 6000); });
+    Updates.start();
     if (Account.signedIn() || U.load("guest", false)) Screens.enter();
     else push(Screens.login());
   }
