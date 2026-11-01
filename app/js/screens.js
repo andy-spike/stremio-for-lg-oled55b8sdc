@@ -150,10 +150,10 @@ var Screens = (function () {
     clock.refresh = tick;
     tick();
     var timer = setInterval(function () { if (document.body.contains(clock)) tick(); else clearInterval(timer); }, 15000);
-    return el("header.topbar", {}, [el("div.logo", {}, [el("img.mark", { src: "icon.png", alt: "" }), el("span", { text: "Stremio" })])].concat(tabs, [clock]));
+    return el("header.topbar", {}, [el("div.logo", {}, [el("img.mark", { src: "logo.png", alt: "" }), el("span", { text: "Stremio" })])].concat(tabs, [clock]));
   }
 
-  function brand() { return el("div.brand", {}, [el("img.mark", { src: "icon.png", alt: "" }), el("span", { text: "Stremio" })]); }
+  function brand() { return el("div.brand", {}, [el("img.mark", { src: "logo.png", alt: "" }), el("span", { text: "Stremio" })]); }
 
   // Runs fns (returning promises) with at most n in flight.
   function limited(fns, n) {
