@@ -104,7 +104,36 @@ var U = (function () {
     return langName(a).toLowerCase() === langName(b).toLowerCase();
   }
 
+  // "Spanish (Latin America)" -> "spanish": regional variants count as the language.
+  function langBase(code) { return langName(code).replace(/ \(.*\)$/, "").toLowerCase(); }
+
+  // Languages offered in settings, one entry per language: the common ones
+  // first, then the rest alphabetically.
+  var COMMON = ["eng", "spa", "fre", "ger", "ita", "por"];
+  function langOptions() {
+    var seen = {}, rest = [];
+    COMMON.forEach(function (c) { seen[LANGS[c]] = true; });
+    Object.keys(LANGS).forEach(function (c) {
+      var n = LANGS[c];
+      if (c === "und" || / \(/.test(n) || seen[n]) return;
+      seen[n] = true;
+      rest.push([c, n]);
+    });
+    rest.sort(function (a, b) { return a[1] < b[1] ? -1 : 1; });
+    return COMMON.map(function (c) { return [c, LANGS[c]]; }).concat(rest);
+  }
+
+  // Subtitle languages the player lists (Settings > Subtitle languages).
+  // [] means every language.
+  function subLangs() { return load("subLangs", ["eng", "spa"]); }
+  function wantSubLang(code) {
+    var want = subLangs();
+    if (!want.length) return true;
+    var b = langBase(code);
+    return want.some(function (w) { return langBase(w) === b; });
+  }
+
   return { $: $, $all: $all, el: el, clear: clear, load: load, save: save, forget: forget,
     request: request, settle: settle, nowIso: nowIso, clock: clock, bytes: bytes,
-    langName: langName, sameLang: sameLang };
+    langName: langName, sameLang: sameLang, langOptions: langOptions, subLangs: subLangs, wantSubLang: wantSubLang };
 })();

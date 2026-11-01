@@ -492,6 +492,8 @@ var Screens = (function () {
     x.open("GET", "appinfo.json");
     x.send();
     var u = Account.user();
+    var subLangRow = el("div.setting.focusable", {}, [el("span", { text: "Subtitle languages" }), el("span.value", { text: subLangsLabel() })]);
+    subLangRow.onactivate = function () { App.push(subLanguages()); };
     var rows = [
       el("h2", { text: "Account" }),
       el("div.setting", {}, [el("span", { text: u ? "Signed in as" : "Not signed in" }), el("span.value", { text: u ? u.email : "" })]),
@@ -500,6 +502,7 @@ var Screens = (function () {
       el("h2", { text: "Playback" }),
       choice("Preferred audio language", "prefAudioLang", LANGS, ""),
       choice("Subtitles", "prefSubLang", SUBLANGS, ""),
+      subLangRow,
       choice("Subtitle size", "subSize", SIZES, 1),
       choice("Subtitle background", "subBg", [["none", "None"], ["translucent", "Translucent"], ["solid", "Solid"]], "none"),
       choice("Subtitle color", "subColor", [["white", "White"], ["yellow", "Yellow"]], "white"),
@@ -519,6 +522,45 @@ var Screens = (function () {
       return false;
     };
     s.initialFocus = function () { return s.el.querySelector(".page .focusable"); };
+    s.show = function (returning) { if (returning) subLangRow.lastChild.textContent = subLangsLabel(); };
+    return s;
+  }
+
+  function subLangsLabel() {
+    var l = U.subLangs();
+    return l.length ? l.map(U.langName).join(", ") : "All languages";
+  }
+
+  // Settings > Subtitle languages: which languages the player's subtitle
+  // menu lists. Ticking none (or "All languages") lists everything.
+  function subLanguages() {
+    function row(label, onToggle) {
+      var r = el("div.setting.toggle.focusable", {}, [el("span", { text: label }), Icons.svg("check", "tcheck")]);
+      r.onactivate = function () { onToggle(); render(); };
+      return r;
+    }
+    var all = row("All languages", function () { U.save("subLangs", []); });
+    var langs = U.langOptions().map(function (o) {
+      var r = row(o[1], function () {
+        var cur = U.subLangs().filter(function (c) { return c !== o[0]; });
+        if (cur.length === U.subLangs().length) cur.push(o[0]);
+        U.save("subLangs", cur);
+      });
+      r.code = o[0];
+      return r;
+    });
+    function render() {
+      var cur = U.subLangs();
+      all.classList.toggle("on", !cur.length);
+      langs.forEach(function (r) { r.classList.toggle("on", cur.indexOf(r.code) >= 0); });
+    }
+    render();
+    var s = { el: screen("settings", [topBar("settings"), el("div.page.vscroll", {}, el("div.settings", {}, [
+      el("h2", { text: "Subtitle languages" }),
+      el("p.shint", { text: "The subtitle menu in the player lists only these languages. The others stay available under \u201cOther languages\u201d." }),
+      all
+    ].concat(langs)))]) };
+    s.initialFocus = function () { return s.el.querySelector(".toggle.on") || all; };
     return s;
   }
 
