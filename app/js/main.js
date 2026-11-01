@@ -20,7 +20,7 @@ var App = (function () {
     stack.push(screen);
     host.appendChild(screen.el);
     if (screen.show) screen.show();
-    Nav.setRoot(screen.el, screen.initialFocus ? screen.initialFocus() : null);
+    Nav.setRoot(screen.el, screen.initialFocus ? screen.initialFocus() : null, screen.focusScope);
   }
 
   function pop() {
@@ -31,7 +31,7 @@ var App = (function () {
     var t = top();
     t.el.style.display = "";
     if (t.show) t.show(true);
-    Nav.setRoot(t.el, t.focusMemo);
+    Nav.setRoot(t.el, t.focusMemo, t.focusScope);
     return true;
   }
 
@@ -41,7 +41,7 @@ var App = (function () {
     push(screen);
   }
 
-  function refocus(preferred) { var t = top(); if (t) Nav.setRoot(t.el, preferred || Nav.current()); }
+  function refocus(preferred) { var t = top(); if (t) Nav.setRoot(t.el, preferred || Nav.current(), t.focusScope); }
 
   function toast(text, ms) {
     var t = U.$("#toast");
@@ -69,15 +69,24 @@ var App = (function () {
   function start() {
     host = U.$("#screens");
     document.addEventListener("keydown", onKey, true);
-    // The Magic Remote pointer: hovering focuses, clicking activates.
+    // The Magic Remote pointer: hovering focuses, clicking activates. Only
+    // inside the part of the screen that owns focus (see Nav.focusScope);
+    // a click outside an open panel goes to the screen's dismiss().
     document.addEventListener("mouseover", function (e) {
       var el = e.target.closest ? e.target.closest(".focusable") : null;
-      if (el && top() && top().el.contains(el) && el !== Nav.current()) Nav.focus(el);
+      if (el && Nav.contains(el) && el !== Nav.current()) Nav.focus(el);
     });
     document.addEventListener("click", function (e) {
+      if (!e.isTrusted) return;
+      var t = top(), scope = t && t.focusScope && t.focusScope();
+      if (scope && !scope.contains(e.target)) {
+        e.preventDefault(); e.stopPropagation();
+        if (t.dismissScope) t.dismissScope();
+        return;
+      }
       var el = e.target.closest ? e.target.closest(".focusable") : null;
-      if (el && el.onactivate && e.isTrusted) { e.preventDefault(); el.onactivate(); }
-    });
+      if (el && el.onactivate) { e.preventDefault(); el.onactivate(); }
+    }, true);
     // Coming back to the app: refresh the library from the account.
     document.addEventListener("webkitvisibilitychange", function () {
       var t = top();

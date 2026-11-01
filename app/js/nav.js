@@ -3,20 +3,33 @@
 // direction. Scrolling containers (.hscroll rows, .vscroll pages) follow the
 // focused element. Focus is a "focus" class, not DOM focus, except for text
 // inputs, which need real focus to open the TV keyboard.
+//
+// A screen can narrow focus to one part of itself with focusScope() (an open
+// side menu, a dialog card): arrows, pointer hover and clicks then stay
+// inside that element until it closes.
 
 var Nav = (function () {
   var root = null;      // element whose focusables are reachable
+  var scopeFn = null;   // returns the element focus is confined to, or null
   var current = null;
 
-  function setRoot(el, preferred) {
+  function setRoot(el, preferred, scope) {
     root = el;
-    var start = preferred && root.contains(preferred) ? preferred : first();
+    scopeFn = scope || null;
+    var start = preferred && area().contains(preferred) ? preferred : first();
     focus(start);
   }
 
+  // The part of the screen that currently owns focus.
+  function area() {
+    var s = scopeFn && scopeFn();
+    return s && root && root.contains(s) ? s : root;
+  }
+  function contains(el) { return !!(root && el && area().contains(el)); }
+
   function candidates() {
     if (!root) return [];
-    return U.$all(".focusable", root).filter(function (el) {
+    return U.$all(".focusable", area()).filter(function (el) {
       return el.offsetParent !== null && !el.classList.contains("disabled");
     });
   }
@@ -61,7 +74,7 @@ var Nav = (function () {
   // Nearest candidate in a direction, preferring elements that overlap on
   // the other axis (so moving down in a list stays in the column).
   function move(dir) {
-    if (!current || !root.contains(current)) { focus(first()); return true; }
+    if (!current || !contains(current)) { focus(first()); return true; }
     var a = current.getBoundingClientRect();
     var ax = a.left + a.width / 2, ay = a.top + a.height / 2;
     var best = null, bestScore = Infinity, bestInRow = null, bestRowScore = Infinity;
@@ -93,6 +106,6 @@ var Nav = (function () {
     return false;
   }
 
-  return { setRoot: setRoot, focus: focus, move: move, activate: activate, first: first,
+  return { setRoot: setRoot, focus: focus, move: move, activate: activate, first: first, contains: contains,
     current: function () { return current; }, reveal: reveal };
 })();
