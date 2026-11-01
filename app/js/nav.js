@@ -7,7 +7,7 @@
 // A screen can narrow focus to one part of itself with focusScope() (an open
 // side menu, a dialog card): arrows, pointer hover and clicks then stay
 // inside that element until it closes. Left/right also stay inside the top
-// bar, card rows and filter chips.
+// bar, poster rows and filter chips.
 
 var Nav = (function () {
   var root = null;      // element whose focusables are reachable
@@ -93,7 +93,7 @@ var Nav = (function () {
     var lock = null;
     if (dir === "left" || dir === "right") {
       for (var n = current.parentNode; n && n !== root; n = n.parentNode) {
-        if (n.classList && (n.classList.contains("topbar") || n.classList.contains("hscroll") || n.classList.contains("filters"))) { lock = n; break; }
+        if (n.classList && (n.classList.contains("topbar") || n.classList.contains("strip") || n.classList.contains("filters"))) { lock = n; break; }
       }
     }
     candidates().forEach(function (el) {
@@ -101,8 +101,10 @@ var Nav = (function () {
       var b = el.getBoundingClientRect();
       var bx = b.left + b.width / 2, by = b.top + b.height / 2;
       var main, cross, overlap;
-      if (dir === "left") { main = a.left - b.right; cross = Math.abs(ay - by); overlap = b.bottom > a.top && b.top < a.bottom; if (bx >= ax) return; }
-      else if (dir === "right") { main = b.left - a.right; cross = Math.abs(ay - by); overlap = b.bottom > a.top && b.top < a.bottom; if (bx <= ax) return; }
+      // Left/right only to things whose centre is past the current edge, so a
+      // narrow tab above a wide row isn't "to the left" of that row.
+      if (dir === "left") { main = a.left - b.right; cross = Math.abs(ay - by); overlap = b.bottom > a.top && b.top < a.bottom; if (bx >= a.left) return; }
+      else if (dir === "right") { main = b.left - a.right; cross = Math.abs(ay - by); overlap = b.bottom > a.top && b.top < a.bottom; if (bx <= a.right) return; }
       else if (dir === "up") { main = a.top - b.bottom; cross = Math.abs(ax - bx); overlap = b.right > a.left && b.left < a.right; if (by >= ay) return; }
       else { main = b.top - a.bottom; cross = Math.abs(ax - bx); overlap = b.right > a.left && b.left < a.right; if (by <= ay) return; }
       if (main < -2) main = 0;

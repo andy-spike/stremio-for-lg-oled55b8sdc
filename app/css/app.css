@@ -63,7 +63,9 @@ h2 { font-size: 1.5vw; font-weight: 700; margin: 2.4vw 0 0.8vw; color: var(--ink
 .card { flex: 0 0 auto; margin-right: 1.2vw; transition: transform 140ms ease-out; }
 .card .art { position: relative; border-radius: 0.6vw; background: var(--raised); overflow: hidden;
   display: flex; align-items: center; justify-content: center; }
-.card .img { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: center / cover no-repeat; }
+/* Rounded itself, not only clipped by .art: this Chromium drops the clip
+   while a card's focus zoom animates, flashing square corners. */
+.card .img { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: center / cover no-repeat; border-radius: inherit; }
 .card.poster .art { width: 10.5vw; height: 15.75vw; }
 .card.landscape .art { width: 21vw; height: 11.8vw; }
 .card.square .art { width: 12vw; height: 12vw; }
