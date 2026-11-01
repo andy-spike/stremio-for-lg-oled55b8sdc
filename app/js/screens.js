@@ -524,7 +524,7 @@ var Screens = (function () {
     var rows = [
       el("h2", { text: "Account" }),
       el("div.setting", {}, [el("span", { text: u ? "Signed in as" : "Not signed in" }), el("span.value", { text: u ? u.email : "" })]),
-      u ? button("Sign out", function () { Account.logout(); U.forget("guest"); App.reset(login()); }, "", "signOut")
+      u ? button("Sign out", function () { Account.logout(); Addons.reset(); U.forget("guest"); App.reset(login()); }, "", "signOut")
         : button("Sign in", function () { U.forget("guest"); App.reset(login()); }, "primary", "mail"),
       el("h2", { text: "Playback" }),
       choice("Preferred audio language", "prefAudioLang", LANGS, ""),

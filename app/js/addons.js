@@ -42,6 +42,10 @@ var Addons = (function () {
 
   function all() { return list || []; }
 
+  // Signed out: forget the account's addons so they can't come back as the
+  // "offline" fallback for the next person.
+  function reset() { list = null; U.forget("addons"); }
+
   // Does this addon serve `resource` for this type and id? Resources can be
   // plain names or objects with their own types/idPrefixes.
   function supports(addon, resource, type, id) {
@@ -130,6 +134,6 @@ var Addons = (function () {
     })).then(function (groups) { return [].concat.apply([], groups.filter(Boolean)); });
   }
 
-  return { load: load, all: all, supports: supports, boardCatalogs: boardCatalogs, searchCatalogs: searchCatalogs,
+  return { load: load, all: all, reset: reset, supports: supports, boardCatalogs: boardCatalogs, searchCatalogs: searchCatalogs,
     catalog: catalog, meta: meta, streams: streams, subtitles: subtitles };
 })();
