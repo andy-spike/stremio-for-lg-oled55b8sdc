@@ -74,6 +74,13 @@ var U = (function () {
   }
   function forget(key) { localStorage.removeItem(key); }
 
+  // Time of day in the format picked in Settings: "9:41 PM" (default) or "21:41".
+  function timeOfDay(d) {
+    var h = d.getHours(), m = ("0" + d.getMinutes()).slice(-2);
+    if (load("clockFormat", "12h") === "24h") return ("0" + h).slice(-2) + ":" + m;
+    return ((h + 11) % 12 + 1) + ":" + m + (h < 12 ? " AM" : " PM");
+  }
+
   // fetch with a timeout. Resolves to parsed JSON; rejects on HTTP errors.
   function request(url, opts) {
     opts = opts || {};
@@ -169,7 +176,7 @@ var U = (function () {
     return want.some(function (w) { return langBase(w) === b; });
   }
 
-  return { $: $, $all: $all, el: el, clear: clear, load: load, save: save, forget: forget,
+  return { $: $, $all: $all, el: el, clear: clear, load: load, save: save, forget: forget, timeOfDay: timeOfDay,
     request: request, settle: settle, nowIso: nowIso, clock: clock, bytes: bytes,
     lastStream: lastStream, setLastStream: setLastStream, migrateLastStreams: migrateLastStreams,
     langName: langName, sameLang: sameLang, langOptions: langOptions, subLangs: subLangs, wantSubLang: wantSubLang };

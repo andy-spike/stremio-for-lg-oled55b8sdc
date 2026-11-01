@@ -71,7 +71,8 @@ var Screens = (function () {
       return b;
     });
     var clock = el("div.clock");
-    function tick() { var d = new Date(); clock.textContent = d.getHours() + ":" + ("0" + d.getMinutes()).slice(-2); }
+    function tick() { clock.textContent = U.timeOfDay(new Date()); }
+    clock.refresh = tick;
     tick();
     var timer = setInterval(function () { if (document.body.contains(clock)) tick(); else clearInterval(timer); }, 15000);
     return el("header.topbar", {}, [el("div.logo", {}, [el("img.mark", { src: "icon.png", alt: "" }), el("span", { text: "Stremio" })])].concat(tabs, [clock]));
@@ -602,7 +603,7 @@ var Screens = (function () {
   var SUBLANGS = [["", "Off"]].concat(LANGS.slice(1));
   var SIZES = [[0.8, "Small"], [1, "Normal"], [1.3, "Large"], [1.6, "Huge"]];
 
-  function choice(label, key, options, fallback) {
+  function choice(label, key, options, fallback, onChange) {
     var value = U.load(key, fallback);
     var idx = Math.max(0, options.map(function (o) { return o[0]; }).indexOf(value));
     var valueEl = el("span.svalue", { text: options[idx][1] });
@@ -612,6 +613,7 @@ var Screens = (function () {
       idx = (idx + d + options.length) % options.length;
       U.save(key, options[idx][0]);
       valueEl.textContent = options[idx][1];
+      if (onChange) onChange(options[idx][0]);
     }
     r.onactivate = function () { step(1); };
     r.step = step;
@@ -641,6 +643,11 @@ var Screens = (function () {
       choice("Subtitle size", "subSize", SIZES, 1),
       choice("Subtitle background", "subBg", [["none", "None"], ["translucent", "Translucent"], ["solid", "Solid"]], "none"),
       choice("Subtitle color", "subColor", [["white", "White"], ["yellow", "Yellow"]], "white"),
+      el("h2", { text: "Display" }),
+      choice("Clock", "clockFormat", [["12h", "AM/PM"], ["24h", "24-hour"]], "12h", function () {
+        var c = s.el.querySelector(".clock");
+        if (c && c.refresh) c.refresh();
+      }),
       el("h2", { text: "About" }),
       info("Streaming server", serverState),
       info("Addons", el("span.value", { text: Addons.all().map(function (a) { return a.manifest.name; }).join(", ") })),

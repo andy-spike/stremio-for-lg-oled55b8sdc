@@ -37,7 +37,7 @@ var Player = (function () {
   }
 
   function channels(n) { return n > 2 ? (n - 1) + ".1" : n === 1 ? "mono" : "stereo"; }
-  function hhmm(d) { return d.getHours() + ":" + ("0" + d.getMinutes()).slice(-2); }
+  function hhmm(d) { return U.timeOfDay(d); }
 
   function create(opts) {
     var meta = opts.meta, video = opts.video, stream = opts.stream;
