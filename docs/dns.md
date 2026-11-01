@@ -48,8 +48,8 @@ may appear in ConnMan logs while the mount is active.
 
 Our custom user hook `/var/lib/webosbrew/init.d/92-stremio-dns` activates the
 service at boot. Existing hooks, Homebrew binaries, failsafe, launcher and
-startup service are untouched. The hook was invoked manually and verified to
-be idempotent; cold-boot behavior has not been verified. No reboot was performed.
+startup service are untouched. The hook was initially verified manually; a
+subsequent authorized reboot confirmed automatic DNS activation (see below).
 
 ## Enable and undo
 
@@ -113,3 +113,29 @@ Early results below were intermittent before the address conflict was corrected.
   upstream errors. RSS 25,419,776 bytes (about 24.2 MiB).
 - Current state: DHCP address 192.168.0.10, HTTPS DNS enabled, custom boot hook
   installed, Stremio server 4.22.5 with 4.20.19 available for rollback.
+
+## Post-reboot verification (2026-11-01)
+
+The TV was rebooted at about 15:31 local time. SSH reconnected after startup,
+and uptime confirmed a fresh boot. No manual DNS activation was needed:
+
+- DHCP persisted and the TV retained 192.168.0.10.
+- The DNS supervisor and worker started automatically, listening on loopback;
+  `/etc/resolv.conf` again pointed to 127.0.0.2 through the read-only bind mount.
+- Four UDP DNS checks passed in 213–458 ms; TCP DNS passed in 561 ms.
+- Attack on Titan metadata returned the expected title, ID and 131 episodes.
+- Stremio 1.3.7 was launched through applicationManager. Its running-app list
+  and foreground-app API both confirmed `com.local.stremio`.
+- The streaming server was started and answered as 4.22.5. Previous version
+  4.20.19 and both DNS/network recovery backups remained available.
+- Controlled torrent discovery, metadata and file selection passed. The served
+  H.264/AAC MP4 matched its original checksum. The probe endpoint identified
+  both codecs, and HLS master and video media playlists were generated.
+- SHA-256 checks of the installed server, DNS worker, DNS supervisor, updater,
+  streaming service and patcher all matched the local runtime files.
+- DNS, server-update, account and subtitle test suites passed.
+
+The foreground-app check confirms that Stremio is open on the TV. Actual
+rendered title details and on-screen playback still require a screen check:
+both available capture API probes were rejected by this firmware. Network
+reconnection without reboot remains a separate, untested scenario.
