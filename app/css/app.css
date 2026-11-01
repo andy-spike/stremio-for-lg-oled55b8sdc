@@ -164,6 +164,7 @@ input.focus { border-color: #fff; }
 .stream { display: flex; align-items: flex-start; padding: 1.1vw 1.4vw; border-radius: 0.8vw; background: rgba(24,27,34,0.88); margin-bottom: 0.6vw; }
 .stream.focus { background: #f4f4f6; color: #0d0f14; }
 .stream.disabled { opacity: 0.45; }
+.btn.waiting { opacity: 0.6; }
 .stream .sname { flex: 0 0 auto; width: 13vw; font-weight: 700; font-size: 1.3vw; line-height: 1.3; white-space: pre-line; margin-right: 1.6vw; }
 .stream .sbody { flex: 1; min-width: 0; }
 .stream .stitle { white-space: pre-line; font-size: 1.2vw; line-height: 1.4; max-height: 5vw; overflow: hidden; color: var(--soft);

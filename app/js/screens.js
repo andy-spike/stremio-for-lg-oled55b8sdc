@@ -46,7 +46,7 @@ var Screens = (function () {
     var img = el("div.art", {}, [el("span.fallback", { text: item.name || "" }),
       item.poster ? el("div.img", { style: { backgroundImage: "url(\"" + String(item.poster).replace(/"/g, "%22") + "\")" } }) : null,
       opts.progress ? el("div.progress", {}, el("div", { style: { width: Math.min(100, opts.progress * 100) + "%" } })) : null]);
-    var c = el("div.card.focusable." + posterClass(item.posterShape), {}, [img,
+    var c = el("div.card.focusable." + posterClass(item.posterShape), { "data-key": "card:" + (item.id || item._id) }, [img,
       el("div.name", { text: item.name || "" }),
       opts.label ? el("div.meta", { text: opts.label }) : null]);
     c.onactivate = function () { App.push(detail(item.type, item.id || item._id, item.id ? item : null)); };
@@ -65,9 +65,8 @@ var Screens = (function () {
       b.onactivate = function () {
         if (t[0] === active) return;
         var make = { home: null, search: search, library: library, settings: settings }[t[0]];
-        if (!make) { while (App.pop()) { /* back to home */ } return; }
-        if (active !== "home") App.pop();
-        App.push(make());
+        while (App.pop()) { /* back to Home */ }
+        if (make) App.push(make());
       };
       return b;
     });
@@ -179,10 +178,11 @@ var Screens = (function () {
       if (!items.length) return;
       cwSlot.appendChild(row("Continue Watching", items.slice(0, 30).map(function (it) {
         var st = it.state;
-        var left = st.duration > st.timeOffset + 30000 ? minutesLeft(st) : "";
+        var upNext = st.timeOffset <= 1;   // finished; the next episode is queued at offset 1
+        var left = !upNext && st.duration > st.timeOffset + 30000 ? minutesLeft(st) : "";
         var ep = it.type === "series" ? episodeLabel(st.video_id) : "";
-        return card(it, { progress: st.duration ? st.timeOffset / st.duration : 0,
-          label: [ep, left].filter(Boolean).join(" · ") || (st.timeOffset === 1 ? "Up next" : "") });
+        return card(it, { progress: !upNext && st.duration ? st.timeOffset / st.duration : 0,
+          label: [ep, upNext ? "Up next" : left].filter(Boolean).join(" · ") });
       })));
     }
     buildContinue();
@@ -202,16 +202,17 @@ var Screens = (function () {
           U.clear(strip);
           metas.slice(0, 40).forEach(function (m) { strip.appendChild(card(m)); });
           // Until the user moves, keep focus on the first poster rather than the tabs.
+          if (App.top() !== s) return;
           var cur = Nav.current();
           App.refocus(!moved && (!cur || cur.classList.contains("tab")) ? s.initialFocus() : null);
-        }, function () { r.el.remove(); App.refocus(); });
+        }, function () { r.el.remove(); if (App.top() === s) App.refocus(); });
       };
     }), 4);
 
     s.initialFocus = function () { return s.el.querySelector(".row .card.focusable") || s.el.querySelector(".tab.active"); };
     var moved = false;
     s.key = function (code) { if (code >= 37 && code <= 40) moved = true; return false; };
-    s.refresh = function () { var f = Nav.current(); buildContinue(); App.refocus(s.el.contains(f) ? f : null); };
+    s.refresh = function () { var f = Nav.current(); buildContinue(); if (App.top() === s) App.refocus(f); };
     s.show = function (returning) { if (returning) s.refresh(); };
     return s;
   }
@@ -225,23 +226,26 @@ var Screens = (function () {
     var timer = null, seq = 0;
     function run() {
       var q = input.value.trim();
-      if (!q) return;
       var mine = ++seq;
+      if (!q) { U.clear(results); return; }
       U.clear(results).appendChild(spinner("Searching…"));
       var cats = Addons.searchCatalogs();
-      var found = 0;
+      var found = 0, failed = 0;
       U.settle(cats.map(function (entry) {
         return Addons.catalog(entry, { search: q }).then(function (metas) {
           if (mine !== seq || !metas.length) return;
           if (!found++) U.clear(results);
           results.appendChild(row(entry.addon.manifest.name + " — " + typeLabel(entry.catalog.type), metas.slice(0, 40).map(function (m) { return card(m); })));
-        });
+        }, function (e) { failed++; throw e; });
       })).then(function () {
-        if (mine === seq && !found) U.clear(results).appendChild(el("div.empty", { text: "Nothing found for “" + q + "”. Try the original title, or fewer words." }));
+        if (mine !== seq || found) return;
+        U.clear(results).appendChild(el("div.empty", { text: cats.length && failed === cats.length
+          ? "Couldn't reach your search addons. Check the connection and try again."
+          : "Nothing found for “" + q + "”. Try the original title, or fewer words." }));
       });
     }
     input.addEventListener("keydown", function (e) {
-      if (e.keyCode === KEY.OK) { e.preventDefault(); clearTimeout(timer); run(); var c = results.querySelector(".card"); if (c) setTimeout(function () { App.refocus(); }, 0); }
+      if (e.keyCode === KEY.OK) { e.preventDefault(); clearTimeout(timer); run(); }
       if (e.keyCode === KEY.DOWN) { var first = results.querySelector(".card"); if (first) { e.preventDefault(); e.stopPropagation(); input.blur(); Nav.focus(first); } }
     });
     input.addEventListener("input", function () { clearTimeout(timer); timer = setTimeout(run, 900); });
@@ -255,7 +259,7 @@ var Screens = (function () {
     var grid = el("div.grid");
     var filter = "all";
     var filters = el("div.filters", {}, [["all", "All"], ["movie", "Movies"], ["series", "Series"]].map(function (f) {
-      var b = el("div.chip.focusable" + (f[0] === filter ? ".active" : ""), { text: f[1] });
+      var b = el("div.chip.focusable" + (f[0] === filter ? ".active" : ""), { text: f[1], "data-key": "filter:" + f[0] });
       b.onactivate = function () {
         filter = f[0];
         U.$all(".chip", filters).forEach(function (c) { c.classList.toggle("active", c === b); });
@@ -291,6 +295,8 @@ var Screens = (function () {
     var side = el("div.side.vscroll");
     var s = { el: screen("detail", [bg, el("div.shade"), info, side]) };
     var meta = preview;
+    var full = false;          // the addon's full details (with episodes) have arrived
+    var shownSeason = null;    // season the user picked; kept across re-renders
 
     function videoFor(videoId) {
       var v = (meta.videos || []).filter(function (x) { return x.id === videoId; })[0];
@@ -316,11 +322,19 @@ var Screens = (function () {
       var target = resume ? videoFor(lib.state.video_id) : isSeries ? (episodes.filter(function (v) { return v.season > 0; })[0] || episodes[0]) : videoFor(null);
       var label = resume ? "Resume" : isSeries ? "Watch" : "Play";
       if (isSeries && target) label += " " + episodeLabel(target.id || ("x:" + target.season + ":" + target.episode));
+      // A series' catalog preview has no episode list: wait for the details
+      // rather than asking addons for streams of the show itself.
+      var waiting = type === "series" && !full;
+      if (waiting) label = "Loading episodes…";
       var play = button(label, function () {
-        var saved = resume ? U.load("lastStream:" + target.id, null) : null;
-        if (saved) Player.open({ meta: meta, video: target, stream: saved });
+        if (waiting) return;
+        var saved = resume ? U.lastStream(target.id) : null;
+        // Resume plays the saved stream on top of its stream list, so
+        // "Other streams" and Back land on the list.
+        if (saved) { App.push(streams(meta, target)); Player.open({ meta: meta, video: target, stream: saved }); }
         else App.push(streams(meta, target));
-      }, "primary", "play");
+      }, "primary" + (waiting ? ".waiting" : ""), "play");
+      play.setAttribute("data-key", "play");
       actions.appendChild(play);
       if (Account.signedIn()) {
         var inLib = Account.inLibrary(meta.id);
@@ -329,9 +343,14 @@ var Screens = (function () {
           Account.setInLibrary(meta, on);
           libBtn.setLabel(on ? "In library" : "Add to library", on ? "check" : "plus");
         }, "", inLib ? "check" : "plus");
+        libBtn.setAttribute("data-key", "lib");
         actions.appendChild(libBtn);
       }
-      if (resume && !isSeries) actions.appendChild(button("Other streams", function () { App.push(streams(meta, target)); }, "", "sources"));
+      if (resume && !isSeries) {
+        var other = button("Other streams", function () { App.push(streams(meta, target)); }, "", "sources");
+        other.setAttribute("data-key", "other");
+        actions.appendChild(other);
+      }
       info.appendChild(actions);
 
       U.clear(side);
@@ -344,14 +363,16 @@ var Screens = (function () {
       var seasons = [];
       episodes.forEach(function (v) { if (seasons.indexOf(v.season) < 0) seasons.push(v.season); });
       seasons.sort(function (a, b) { return (a === 0) - (b === 0) || a - b; });   // specials last
-      var current = target ? target.season : seasons[0];
+      // The season picked earlier, else the target's, else the first one.
+      var current = [shownSeason, target && target.season].filter(function (n) { return seasons.indexOf(n) >= 0; })[0];
+      if (current === undefined) current = seasons[0];
       var tabs = el("div.seasons.hscroll");
       var list = el("div.episodes");
       side.appendChild(tabs);
       side.appendChild(list);
       seasons.forEach(function (n) {
-        var t = el("div.chip.focusable" + (n === current ? ".active" : ""), { text: n === 0 ? "Specials" : "Season " + n });
-        t.onactivate = function () { current = n; U.$all(".chip", tabs).forEach(function (c) { c.classList.toggle("active", c === t); }); fill(); };
+        var t = el("div.chip.focusable" + (n === current ? ".active" : ""), { text: n === 0 ? "Specials" : "Season " + n, "data-key": "season:" + n });
+        t.onactivate = function () { current = shownSeason = n; U.$all(".chip", tabs).forEach(function (c) { c.classList.toggle("active", c === t); }); fill(); };
         tabs.appendChild(t);
       });
       function fill() {
@@ -360,7 +381,7 @@ var Screens = (function () {
           var playing = lib && lib.state.video_id === v.id;
           var released = v.released ? new Date(v.released) : null;
           var future = released && released > new Date();
-          var e = el("div.episode.focusable" + (future ? ".future" : ""), {}, [
+          var e = el("div.episode.focusable" + (future ? ".future" : ""), { "data-key": "ep:" + v.id }, [
             el("div.thumb", { style: v.thumbnail ? { backgroundImage: "url(\"" + v.thumbnail + "\")" } : {} },
               playing && lib.state.duration ? el("div.progress", {}, el("div", { style: { width: Math.min(100, lib.state.timeOffset / lib.state.duration * 100) + "%" } })) : null),
             el("div.text", {}, [
@@ -379,14 +400,19 @@ var Screens = (function () {
 
     if (meta) render(); else info.appendChild(spinner("Loading…"));
     Addons.meta(type, id).then(function (m) {
-      if (!m) { if (!meta) { U.clear(info).appendChild(el("div.error", { text: "No addon has details for this title." })); } return; }
+      if (!m) {
+        if (!meta) U.clear(info).appendChild(el("div.error", { text: "No addon has details for this title." }));
+        else { full = true; render(); if (App.top() === s) App.refocus(Nav.current()); }   // play from the preview
+        return;
+      }
       var focused = Nav.current();
       meta = m;
+      full = true;
       render();
-      App.refocus(s.el.contains(focused) ? focused : null);
+      if (App.top() === s) App.refocus(focused);
     });
     s.initialFocus = function () { return s.el.querySelector(".btn.primary"); };
-    s.show = function (returning) { if (returning && meta) { render(); App.refocus(); } };
+    s.show = function (returning) { if (returning && meta) render(); };   // App.pop restores focus by data-key
     return s;
   }
 
@@ -435,7 +461,7 @@ var Screens = (function () {
       found.forEach(function (st) {
         all.push(st);
         var playable = !st.ytId && !st.externalUrl && (st.infoHash || st.url);
-        var r = el("div.stream.focusable" + (playable ? "" : ".disabled"), {}, [
+        var r = el("div.stream.focusable" + (playable ? "" : ".disabled"), { "data-key": "st:" + (st.infoHash ? st.infoHash + ":" + (st.fileIdx || 0) : st.url || st.name) }, [
           el("div.sname", { text: st.name || addon.manifest.name }),
           el("div.sbody", {}, [
             el("div.stitle", { text: cleanTitle(st.title || st.description || "") }),
@@ -446,18 +472,19 @@ var Screens = (function () {
         ]);
         r.onactivate = function () {
           if (!playable) return;
-          U.save("lastStream:" + video.id, st);
+          U.setLastStream(video.id, st);
           Player.open({ meta: meta, video: video, stream: st, streams: all });
         };
         list.appendChild(r);
       });
-      if (!Nav.current() || !s.el.contains(Nav.current())) App.refocus();
+      if (App.top() === s && (!Nav.current() || !s.el.contains(Nav.current()))) App.refocus();
     }).then(function () {
       status.textContent = all.length ? all.length + (all.length === 1 ? " stream" : " streams") : "";
       if (!all.length) list.appendChild(el("div.empty", { text: "No streams found. Install stream addons (for example Torrentio) " +
         "from stremio.com on your phone or computer — they sync to the TV after you sign in." }));
     });
     s.initialFocus = function () { return list.querySelector(".stream.focusable:not(.disabled)"); };
+    s.streamsFor = video.id;
     return s;
   }
 

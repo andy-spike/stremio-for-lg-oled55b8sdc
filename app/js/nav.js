@@ -36,7 +36,9 @@ var Nav = (function () {
 
   function first() { return candidates()[0] || null; }
 
-  function focus(el) {
+  // soft: highlight only. Used for pointer hover, so merely pointing at a
+  // text box doesn't open the TV keyboard; OK or a click does.
+  function focus(el, soft) {
     if (current) {
       current.classList.remove("focus");
       if (current.tagName === "INPUT" && current !== el) current.blur();
@@ -44,7 +46,7 @@ var Nav = (function () {
     current = el;
     if (!el) return;
     el.classList.add("focus");
-    if (el.tagName === "INPUT") el.focus();
+    if (el.tagName === "INPUT" && !soft) el.focus();
     reveal(el);
     if (el.onfocusin2) el.onfocusin2();
   }
@@ -101,11 +103,24 @@ var Nav = (function () {
   }
 
   function activate() {
+    if (current && current.tagName === "INPUT" && document.activeElement !== current) { current.focus(); return true; }
     if (current && typeof current.onactivate === "function") { current.onactivate(); return true; }
     if (current && current.tagName !== "INPUT") { current.click(); return true; }
     return false;
   }
 
-  return { setRoot: setRoot, focus: focus, move: move, activate: activate, first: first, contains: contains,
+  // el itself if it's still inside root; otherwise the element that replaced
+  // it after a re-render, matched by its data-key (or null).
+  function findSame(root, el) {
+    if (!el || !root) return null;
+    if (root.contains(el)) return el;
+    var key = el.getAttribute && el.getAttribute("data-key");
+    if (!key) return null;
+    var all = U.$all("[data-key]", root);
+    for (var i = 0; i < all.length; i++) if (all[i].getAttribute("data-key") === key) return all[i];
+    return null;
+  }
+
+  return { setRoot: setRoot, findSame: findSame, focus: focus, move: move, activate: activate, first: first, contains: contains,
     current: function () { return current; }, reveal: reveal };
 })();

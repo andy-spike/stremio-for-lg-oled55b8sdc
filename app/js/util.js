@@ -34,7 +34,43 @@ var U = (function () {
     catch (e) { return fallback; }
   }
   function save(key, value) {
-    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* quota: keep running */ }
+    try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+    catch (e) { if (window.console) console.warn("save failed", key, e); return false; }   // quota: keep running
+  }
+
+  // The stream last played per video, for Resume. One capped map (most
+  // recent 60) instead of a key per video, so storage can't fill up.
+  var STREAMS_KEY = "lastStreams", STREAMS_MAX = 60;
+  function lastStream(videoId) {
+    var m = load(STREAMS_KEY, {});
+    return (m[videoId] && m[videoId].stream) || load("lastStream:" + videoId, null);
+  }
+  function setLastStream(videoId, stream) {
+    var m = load(STREAMS_KEY, {});
+    m[videoId] = { at: Date.now(), stream: stream };
+    var ids = Object.keys(m).sort(function (a, b) { return m[b].at - m[a].at; });
+    ids.slice(STREAMS_MAX).forEach(function (id) { delete m[id]; });
+    save(STREAMS_KEY, m);
+    forget("lastStream:" + videoId);
+  }
+  // Move the old per-video keys ("lastStream:<id>") into the capped map.
+  function migrateLastStreams() {
+    try {
+      var m = load(STREAMS_KEY, {}), old = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf("lastStream:") === 0) old.push(k);
+      }
+      if (!old.length) return;
+      old.forEach(function (k) {
+        var id = k.slice("lastStream:".length);
+        if (!m[id]) m[id] = { at: 0, stream: load(k, null) };
+        localStorage.removeItem(k);
+      });
+      var ids = Object.keys(m).sort(function (a, b) { return m[b].at - m[a].at; });
+      ids.slice(STREAMS_MAX).forEach(function (id) { delete m[id]; });
+      save(STREAMS_KEY, m);
+    } catch (e) { /* ignore */ }
   }
   function forget(key) { localStorage.removeItem(key); }
 
@@ -135,5 +171,6 @@ var U = (function () {
 
   return { $: $, $all: $all, el: el, clear: clear, load: load, save: save, forget: forget,
     request: request, settle: settle, nowIso: nowIso, clock: clock, bytes: bytes,
+    lastStream: lastStream, setLastStream: setLastStream, migrateLastStreams: migrateLastStreams,
     langName: langName, sameLang: sameLang, langOptions: langOptions, subLangs: subLangs, wantSubLang: wantSubLang };
 })();

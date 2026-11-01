@@ -10,13 +10,14 @@ var KEY = { LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, OK: 13, BACK: 461, ESC: 27, B
 var App = (function () {
   var stack = [];
   var host = null;
-  var toastTimer = null;
+  var toastTimer = null, lastBack = 0;
 
   function top() { return stack[stack.length - 1] || null; }
 
   function push(screen) {
     var prev = top();
     if (prev) { prev.focusMemo = Nav.current(); if (prev.hide) prev.hide(); prev.el.style.display = "none"; }
+    lastBack = 0;
     stack.push(screen);
     host.appendChild(screen.el);
     if (screen.show) screen.show();
@@ -31,7 +32,8 @@ var App = (function () {
     var t = top();
     t.el.style.display = "";
     if (t.show) t.show(true);
-    Nav.setRoot(t.el, t.focusMemo, t.focusScope);
+    // show() may have re-rendered; find the element that replaced the old one.
+    Nav.setRoot(t.el, Nav.findSame(t.el, t.focusMemo), t.focusScope);
     return true;
   }
 
@@ -41,7 +43,14 @@ var App = (function () {
     push(screen);
   }
 
-  function refocus(preferred) { var t = top(); if (t) Nav.setRoot(t.el, preferred || Nav.current(), t.focusScope); }
+  // Re-apply focus on the top screen: preferred (or its re-rendered twin),
+  // else keep the current element, else the first. Elements from other
+  // screens are ignored, so background loads can't move focus.
+  function refocus(preferred) {
+    var t = top();
+    if (!t) return;
+    Nav.setRoot(t.el, Nav.findSame(t.el, preferred) || Nav.findSame(t.el, Nav.current()), t.focusScope);
+  }
 
   function toast(text, ms) {
     var t = U.$("#toast");
@@ -62,7 +71,10 @@ var App = (function () {
     else if (code === KEY.OK) { if (Nav.activate()) e.preventDefault(); }
     else if (code === KEY.BACK || code === KEY.ESC || (code === KEY.BACKSPACE && document.activeElement.tagName !== "INPUT")) {
       e.preventDefault();
-      if (!pop()) window.close();
+      if (pop()) return;
+      // Leaving the app takes a second Back, so a stray press doesn't exit.
+      if (Date.now() - lastBack < 2500) window.close();
+      else { lastBack = Date.now(); toast("Press Back again to exit", 2500); }
     }
   }
 
@@ -74,7 +86,7 @@ var App = (function () {
     // a click outside an open panel goes to the screen's dismiss().
     document.addEventListener("mouseover", function (e) {
       var el = e.target.closest ? e.target.closest(".focusable") : null;
-      if (el && Nav.contains(el) && el !== Nav.current()) Nav.focus(el);
+      if (el && Nav.contains(el) && el !== Nav.current()) Nav.focus(el, true);
     });
     document.addEventListener("click", function (e) {
       if (!e.isTrusted) return;
@@ -97,6 +109,7 @@ var App = (function () {
       }
     });
 
+    U.migrateLastStreams();
     Engine.detectCaps();
     Engine.ensure().catch(function (e) { toast(e.message, 6000); });
     if (Account.signedIn() || U.load("guest", false)) Screens.enter();

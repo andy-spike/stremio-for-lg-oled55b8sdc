@@ -27,7 +27,12 @@ var Addons = (function () {
       if (list && list.length && Account.signedIn()) return list;   // offline: keep the last known set
       return U.settle(DEFAULTS.map(function (url) {
         return U.request(url).then(function (m) { return { transportUrl: url, manifest: m }; });
-      })).then(function (r) { return r.filter(Boolean); });
+      })).then(function (r) {
+        r = r.filter(Boolean);
+        if (!r.length && list && list.length) return list;   // offline guest: keep the cached set
+        if (!r.length) throw new Error("no addon could be reached. Check the internet connection.");
+        return r;
+      });
     }).then(function (addons) {
       list = addons;
       U.save("addons", list);
