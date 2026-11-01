@@ -199,6 +199,8 @@ var Player = (function () {
     function load(newMode, startAt, wantAudio) {
       teardown();
       mode = newMode;
+      tvSubsSettled = mode !== "direct";
+      playingSeen = false;
       audioIdx = wantAudio;
       var resumeAt = startAt || 0;
       if (mode === "direct") {
@@ -235,7 +237,8 @@ var Player = (function () {
     }
 
     // The TV assigns the hardware pipeline an id once the source opens;
-    // LG's media service needs it for track selection.
+    // LG's media service needs it for track selection. Poll often: until we
+    // have it, the TV may be drawing the file's default subtitle track.
     function waitForMediaId() {
       var tries = 0;
       clearInterval(mediaIdTimer);
@@ -244,10 +247,25 @@ var Player = (function () {
         if (id && id !== "<invalid mediaId>") {
           clearInterval(mediaIdTimer);
           mediaId = id;
+          // Switch the TV's own subtitles off first (unless an embedded
+          // track was chosen); the loading screen stays up until it's done.
+          var off = subSel.kind === "embedded" ? Promise.resolve()
+            : Luna.media("setSubtitleEnable", { mediaId: mediaId, enable: false });
+          off.then(settleTvSubs, settleTvSubs);
           if (plan.audio.length > 1) Luna.media("selectTrack", { type: "audio", mediaId: mediaId, index: audioIdx });
           applySubs();
-        } else if (++tries > 30) clearInterval(mediaIdTimer);
-      }, 300);
+        } else if (++tries > 150) { clearInterval(mediaIdTimer); settleTvSubs(); }
+      }, 60);
+    }
+
+    // The loading screen hides once the video plays AND (in direct play) the
+    // TV's subtitles are switched off, so its default track never flashes
+    // on screen. Never waits more than 2 s after playback starts.
+    var tvSubsSettled = true, playingSeen = false;
+    function settleTvSubs() { tvSubsSettled = true; reveal(); }
+    function reveal() {
+      if (!playingSeen || !tvSubsSettled) return;
+      loading.classList.add("hidden");
     }
 
     function fail(message) {
@@ -282,7 +300,11 @@ var Player = (function () {
       } else fail("The stream stopped responding (network error " + code + ").");
     });
     media.addEventListener("playing", function () {
-      loading.classList.add("hidden");
+      if (!playingSeen) {
+        playingSeen = true;
+        setTimeout(settleTvSubs, 2000);
+      }
+      reveal();
       buffering.classList.add("hidden");
       setCtl(btnPlay, "pause", "Pause");
     });
@@ -457,7 +479,8 @@ var Player = (function () {
       var list = [];
       for (var k = 0; k < track.cues.length; k++) {
         var c = track.cues[k];
-        list.push({ start: c.startTime, end: c.endTime, text: String(c.text || "").replace(/<[^>]+>/g, "") });
+        var text = Subtitles.clean(c.text);
+        if (text) list.push({ start: c.startTime, end: c.endTime, text: text });
       }
       list.sort(function (a, b) { return a.start - b.start; });
       subs.setCues(list);
@@ -757,6 +780,9 @@ var Player = (function () {
     };
 
     timers.push(setInterval(tick, 250));
+    // Subtitles get their own faster clock so lines appear and clear on time
+    // (the 250 ms tick could leave them up to a quarter second late).
+    timers.push(setInterval(function () { if (subs.hasCues()) subs.update(media.currentTime || 0); }, 80));
     timers.push(setInterval(function () { if (!media.paused) saveProgress(false); }, 5000));
     start();
     return s;
