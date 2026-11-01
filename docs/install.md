@@ -1,6 +1,6 @@
 # Installation and setup
 
-Read the [requirements](../README.md#requirements) first. These instructions
+Read the [requirements](../README.md#what-youll-need) first. These instructions
 are for a rooted TV with Homebrew Channel, not Developer Mode alone.
 
 ## 1. Connect to your TV
