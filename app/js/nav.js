@@ -6,7 +6,8 @@
 //
 // A screen can narrow focus to one part of itself with focusScope() (an open
 // side menu, a dialog card): arrows, pointer hover and clicks then stay
-// inside that element until it closes.
+// inside that element until it closes. Left/right also stay inside the top
+// bar, card rows and filter chips.
 
 var Nav = (function () {
   var root = null;      // element whose focusables are reachable
@@ -87,8 +88,16 @@ var Nav = (function () {
     var a = current.getBoundingClientRect();
     var ax = a.left + a.width / 2, ay = a.top + a.height / 2;
     var best = null, bestScore = Infinity, bestInRow = null, bestRowScore = Infinity;
+    // Left/right never leave a bar or row (top bar, card rows, filter chips):
+    // at its end, focus stays put.
+    var lock = null;
+    if (dir === "left" || dir === "right") {
+      for (var n = current.parentNode; n && n !== root; n = n.parentNode) {
+        if (n.classList && (n.classList.contains("topbar") || n.classList.contains("hscroll") || n.classList.contains("filters"))) { lock = n; break; }
+      }
+    }
     candidates().forEach(function (el) {
-      if (el === current) return;
+      if (el === current || (lock && !lock.contains(el))) return;
       var b = el.getBoundingClientRect();
       var bx = b.left + b.width / 2, by = b.top + b.height / 2;
       var main, cross, overlap;
@@ -106,7 +115,7 @@ var Nav = (function () {
     // Left/right stay in the current row whenever it has something there.
     if ((dir === "left" || dir === "right") && bestInRow) best = bestInRow;
     if (best) { focus(best); return true; }
-    return false;
+    return !!lock;
   }
 
   function activate() {
