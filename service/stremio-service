@@ -1,0 +1,101 @@
+#!/bin/sh
+# Starts and stops the Stremio streaming server on the TV.
+#
+#   stremio-service start    start the server (no-op if running) and its watchdog
+#   stremio-service stop     stop the server and the watchdog
+#   stremio-service status   print "running" or "stopped"
+#
+# Lives in /media/developer/stremio/bin, owned by root. The Stremio app calls it
+# through Homebrew Channel's root exec service. The server itself runs as
+# "nobody", listens only on 127.0.0.1:11470, and keeps torrent data in a small
+# memory buffer instead of on the TV's flash storage.
+#
+# The watchdog stops the server once the Stremio app has not been running for
+# IDLE_LIMIT seconds, so nothing keeps downloading after you close the app.
+
+ROOT=/media/developer/stremio
+PIDFILE=/tmp/stremio-server.pid
+WATCHPID=/tmp/stremio-watchdog.pid
+LOG=/tmp/stremio-server.log
+APP_ID=com.local.stremio
+IDLE_LIMIT=300
+
+server_pid() {
+  [ -f "$PIDFILE" ] || return 1
+  pid=$(cat "$PIDFILE")
+  [ -n "$pid" ] && [ -d "/proc/$pid" ] && grep -q server.js "/proc/$pid/cmdline" 2>/dev/null && echo "$pid"
+}
+
+watchdog() {
+  idle=0
+  while server_pid >/dev/null; do
+    sleep 30
+    if luna-send -n 1 -f luna://com.webos.applicationManager/running '{}' < /dev/null 2>/dev/null | grep -q "\"$APP_ID\""; then
+      idle=0
+    else
+      idle=$((idle + 30))
+      [ "$idle" -ge "$IDLE_LIMIT" ] && { stop_server; break; }
+    fi
+    # The server logs every request; keep the RAM-backed log small. Trim in
+    # place: the server appends to the open file, so replacing it would leak.
+    [ "$(wc -c < "$LOG" 2>/dev/null || echo 0)" -gt 1048576 ] && tail -n 200 "$LOG" > "$LOG.tmp" && cat "$LOG.tmp" > "$LOG" && rm -f "$LOG.tmp"
+  done
+}
+
+stop_server() {
+  pid=$(server_pid) && kill "$pid" 2>/dev/null
+  rm -f "$PIDFILE"
+  # ffmpeg conversions outlive the server if it is killed; stop ours too.
+  # ffmpeg treats SIGTERM as "finish cleanly" and ignores it while blocked on
+  # I/O, so follow up with SIGKILL.
+  for sig in TERM KILL; do
+    for p in $(pidof ffmpeg ffprobe); do
+      case "$(readlink "/proc/$p/exe")" in
+        "$ROOT/bin/ffmpeg"|"$ROOT/bin/ffprobe") kill -s "$sig" "$p" 2>/dev/null ;;
+      esac
+    done
+    [ "$sig" = TERM ] && sleep 2
+  done
+}
+
+case "$1" in
+  start)
+    # This TV's start-stop-daemon -b retains inherited service descriptors.
+    # Close them explicitly before starting either long-lived child.
+    if ! server_pid >/dev/null; then
+      mkdir -p "$ROOT/data" && chown nobody "$ROOT/data"
+      : > "$LOG"
+      start-stop-daemon -S -b -m -p "$PIDFILE" -x /usr/bin/python -- -c 'import os,sys; os.closerange(3,65536); os.execv("/bin/sh", ["/bin/sh"] + sys.argv[1:])' "$0" run-server
+    fi
+    if ! { [ -f "$WATCHPID" ] && [ -d "/proc/$(cat "$WATCHPID")" ]; }; then
+      start-stop-daemon -S -b -m -p "$WATCHPID" -x /usr/bin/python -- -c 'import os,sys; os.closerange(3,65536); os.execv("/bin/sh", ["/bin/sh"] + sys.argv[1:])' "$0" watchdog
+    fi
+    echo started
+    ;;
+  run-server)
+    # Internal: replaced by the server process, so the pidfile holds its pid.
+    cd "$ROOT/data" || exit 1
+    exec env HOME="$ROOT/data" APP_PATH="$ROOT/data" \
+      NO_HTTPS_SERVER=1 CASTING_DISABLED=1 DISABLE_CACHING=1 YTDL_NO_UPDATE=1 \
+      FFMPEG_BIN="$ROOT/bin/ffmpeg" FFPROBE_BIN="$ROOT/bin/ffprobe" \
+      setuidgid nobody nice -n 5 "$ROOT/lib/ld-linux-armhf.so.3" --library-path "$ROOT/lib" \
+      "$ROOT/bin/node" --max-old-space-size=256 "$ROOT/server.js" >> "$LOG" 2>&1 < /dev/null
+    ;;
+  watchdog)
+    # Internal: started by "start".
+    watchdog
+    ;;
+  stop)
+    [ -f "$WATCHPID" ] && kill "$(cat "$WATCHPID")" 2>/dev/null
+    rm -f "$WATCHPID"
+    stop_server
+    echo stopped
+    ;;
+  status)
+    if server_pid >/dev/null; then echo running; else echo stopped; fi
+    ;;
+  *)
+    echo "usage: $0 start|stop|status" >&2
+    exit 2
+    ;;
+esac

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<!-- Local design preview of the player (not shipped). Loads the real player
+     code and CSS with stand-in TV services. ?state=controls|audio|subs|seek|next|loading|error -->
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="../app/css/app.css">
+  <link rel="stylesheet" href="../app/css/player.css">
+</head>
+<body>
+  <div id="screens"></div>
+  <div id="toast"></div>
+  <script src="../app/js/util.js"></script>
+  <script src="../app/js/engine.js"></script>
+  <script src="../app/js/nav.js"></script>
+  <script src="../app/js/icons.js"></script>
+  <script src="../app/js/subtitles.js"></script>
+  <script src="../app/js/player.js"></script>
+  <script>
+    var state = (/state=(\w+)/.exec(location.search) || [])[1] || "controls";
+    var KEY = { LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, OK: 13, BACK: 461, PLAY: 415, PAUSE: 19, PLAYPAUSE: 10252, STOP: 413, FF: 417, RW: 412 };
+    var screen = null;
+    var App = {
+      push: function (s) { screen = s; U.$("#screens").appendChild(s.el); Nav.setRoot(s.el, null); },
+      pop: function () {}, refocus: function (el) { Nav.setRoot(screen.el, el || Nav.current()); },
+      toast: function () {}
+    };
+    var Luna = { media: function () { return Promise.resolve({ returnValue: true }); } };
+    var Account = {
+      itemFor: function () { return { state: { video_id: null, timeOffset: 0, duration: 0, timeWatched: 0, overallTimeWatched: 0, timesWatched: 0, flaggedWatched: 0 } }; },
+      progress: function () {}, put: function () {}, finish: function () {}
+    };
+    var Addons = {
+      subtitles: function () { return Promise.resolve([
+        { id: 1, url: "a", lang: "eng", addon: "OpenSubtitles v3" }, { id: 2, url: "b", lang: "eng", addon: "OpenSubtitles v3" },
+        { id: 3, url: "c", lang: "spa", addon: "OpenSubtitles v3" }, { id: 4, url: "d", lang: "por", addon: "OpenSubtitles v3" }]); },
+      streams: function () { return Promise.resolve(); }
+    };
+    var probe = { format: { name: "matroska,webm", duration: 2823 }, streams: [
+      { track: "video", codec: "hevc", width: 1920, height: 1080 },
+      { track: "audio", codec: "aac", channels: 6, language: "eng", title: "English" },
+      { track: "audio", codec: "dts", channels: 6, language: "ita", title: "Italiano DTS-HD" },
+      { track: "subtitle", codec: "subrip", language: "eng" }, { track: "subtitle", codec: "subrip", language: "ita", title: "Forced" }] };
+    Engine.ensure = function () { return Promise.resolve(); };
+    Engine.resolve = function () {
+      if (state === "loading") return new Promise(function () {});
+      if (state === "error") return Promise.reject(new Error("Timed out: http://127.0.0.1:11470/create"));
+      return Promise.resolve({ url: "clip.webm", infoHash: "abc", fileIdx: 0, size: 1.4e9, filename: "Mad.Men.S01E02.mkv" });
+    };
+    Engine.probe = function () { return Promise.resolve(probe); };
+    Engine.stats = function () { return Promise.resolve({ peers: 14, downloadSpeed: 3.4e6 }); };
+    Engine.opensubHash = function () { return Promise.resolve(null); };
+    Engine.subtitleVtt = function () { return Promise.resolve("WEBVTT\n\n00:00:00.000 --> 01:00:00.000\nI'm not going to tell you again,\nkeep that door shut."); };
+    if (state === "subtrans") { localStorage.setItem("subBg", '"translucent"'); localStorage.setItem("subColor", '"white"'); }
+    if (state === "subsolid") { localStorage.setItem("subBg", '"solid"'); localStorage.setItem("subColor", '"yellow"'); }
+    var meta = { id: "tt0804503", type: "series", name: "Mad Men", logo: "logo.png", background: "backdrop.jpg",
+      videos: [{ id: "tt0804503:1:2", season: 1, episode: 2, title: "Ladies Room" },
+               { id: "tt0804503:1:3", season: 1, episode: 3, title: "Marriage of Figaro", thumbnail: "backdrop.jpg" }] };
+    if (state === "loading") Engine.stats = function () { return Promise.resolve({ peers: 4, downloadSpeed: 812000 }); };
+
+    function key(code) {
+      if (screen.key && screen.key(code)) return;
+      if (code === KEY.LEFT) Nav.move("left"); else if (code === KEY.RIGHT) Nav.move("right");
+      else if (code === KEY.UP) Nav.move("up"); else if (code === KEY.DOWN) Nav.move("down");
+      else if (code === KEY.OK) Nav.activate();
+    }
+    function later(ms, fn) { setTimeout(fn, ms); }
+
+    Player.open({ meta: meta, video: meta.videos[0], stream: { infoHash: "abc" } });
+    var v = U.$("video");
+    v.muted = true;
+    later(1500, function () {
+      if (state === "controls") { key(KEY.UP); key(KEY.RIGHT); }
+      if (state === "audio") { key(KEY.UP); key(KEY.RIGHT); key(KEY.OK); }
+      if (state === "subs") { key(KEY.UP); key(KEY.RIGHT); key(KEY.RIGHT); key(KEY.OK); }
+      if (state === "seek") { v.currentTime = 40; later(300, function () { key(KEY.RIGHT); key(KEY.RIGHT); key(KEY.RIGHT); }); }
+      if (state === "paused") { v.pause(); }
+      if (state === "next") { v.currentTime = 395; }
+      if (state === "subtrans" || state === "subsolid") {
+        // Subtitles menu -> 4th row (first addon track) -> OK.
+        key(KEY.UP); key(KEY.RIGHT); key(KEY.RIGHT); key(KEY.OK);
+        key(KEY.DOWN); key(KEY.DOWN); key(KEY.DOWN); key(KEY.OK);
+        later(600, function () {
+          if (state === "subtrans") { key(KEY.UP); key(KEY.UP); }      // play -> timeline -> hides
+          else { key(KEY.RIGHT); key(KEY.RIGHT); key(KEY.OK); for (var i = 0; i < 9; i++) key(KEY.DOWN); }
+        });
+      }
+    });
+  </script>
+</body>
+</html>

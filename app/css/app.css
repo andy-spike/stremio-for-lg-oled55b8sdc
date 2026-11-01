@@ -1,0 +1,191 @@
+/* Chromium 53: flexbox only (no grid, no flex gap). Sizes in vw for 1920x1080,
+   a 5vw title-safe margin, and one spacing scale (0.4 / 0.8 / 1.2 / 1.6 /
+   2.4 / 3.2 vw) shared with the player. Focus is a white ring on artwork and
+   a white fill on controls. No CSS filters or blur: they stall the TV's GPU. */
+:root { --edge: 5vw; --bg: #0d0f14; --ink: #f4f4f6; --muted: #9a9daa; --soft: #c4c6cf;
+  --raised: #181b22; --raised2: #22252e; --accent: #8b6cff; --accent-deep: #6a4ef0; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); overflow: hidden;
+  font-family: "LG Smart UI", "Museo Sans", sans-serif; font-size: 1.45vw; }
+#screens > .screen { position: absolute; left: 0; top: 0; width: 100vw; height: 100vh; overflow: hidden; }
+.hidden { display: none !important; }
+h1 { font-size: 2.6vw; font-weight: 700; line-height: 1.1; margin: 0 0 1.2vw; }
+h2 { font-size: 1.5vw; font-weight: 700; margin: 2.4vw 0 0.8vw; color: var(--ink); }
+.error { color: #ff8a8f; margin: 1.2vw 0; }
+.empty { color: var(--muted); padding: 3.2vw 0; font-size: 1.5vw; max-width: 60vw; line-height: 1.45; }
+::selection { background: var(--accent); color: #fff; }
+
+.icon { display: inline-block; flex: 0 0 auto; width: 1.5vw; height: 1.5vw; }
+.icon svg { display: block; width: 100%; height: 100%; }
+
+.btn { display: inline-flex; align-items: center; height: 3.4vw; padding: 0 1.6vw; margin: 0 0.8vw 0.8vw 0; box-sizing: border-box;
+  border-radius: 1.7vw; background: var(--raised2); color: var(--soft); font-size: 1.35vw; font-weight: 600; white-space: nowrap; }
+.btn .icon { width: 1.4vw; height: 1.4vw; margin: 0 0.7vw 0 -0.2vw; }
+.btn.primary { background: var(--accent-deep); color: #fff; }
+.btn.subtle { background: transparent; color: var(--muted); }
+.btn.focus, .chip.focus, .tab.focus, .setting.focus, .mrow.focus { background: #f4f4f6 !important; color: #0d0f14 !important; }
+
+.loading { display: flex; align-items: center; color: var(--muted); font-size: 1.4vw; padding: 2.4vw 0; }
+.spinner { width: 2.2vw; height: 2.2vw; border: 0.3vw solid rgba(255,255,255,0.18); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 0.9s linear infinite; margin-right: 1.2vw; box-sizing: border-box; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+#toast { position: absolute; left: 50%; bottom: 3.6vw; transform: translateX(-50%); z-index: 50;
+  background: rgba(24,27,34,0.97); color: var(--ink); padding: 1vw 2vw; border-radius: 2vw; font-size: 1.35vw;
+  box-shadow: 0 0.8vw 2.4vw rgba(0,0,0,0.5); opacity: 0; transition: opacity 200ms ease-out; pointer-events: none; white-space: nowrap; }
+#toast.open { opacity: 1; }
+
+.badge { display: inline-flex; align-items: center; height: 1.9vw; font-size: 1.02vw; font-weight: 600; padding: 0 0.7vw; border-radius: 0.4vw;
+  background: rgba(255,255,255,0.09); color: var(--soft); margin: 0 0.5vw 0.4vw 0; white-space: nowrap; }
+.badge .icon { width: 1.05vw; height: 1.05vw; margin-right: 0.4vw; }
+.badge.warn { background: rgba(255,196,64,0.16); color: #ffd36b; }
+.badge.info { background: rgba(139,108,255,0.22); color: #cbbcff; }
+.badge.accent { background: var(--accent-deep); color: #fff; }
+.badge.muted { background: transparent; color: var(--muted); padding-left: 0.2vw; }
+
+/* ---- brand ---- */
+.mark { width: 2.4vw; height: 2.4vw; border-radius: 0.6vw; margin-right: 0.9vw; }
+.brand { display: flex; align-items: center; font-size: 2vw; font-weight: 700; color: var(--ink); margin-bottom: 2.4vw; }
+.brand .mark { width: 3vw; height: 3vw; border-radius: 0.75vw; }
+
+/* ---- top bar ---- */
+.topbar { position: absolute; left: var(--edge); right: var(--edge); top: 2.4vw; height: 3.4vw; display: flex; align-items: center; z-index: 2; }
+.topbar .logo { display: flex; align-items: center; font-weight: 700; font-size: 1.7vw; color: var(--ink); margin-right: 2.4vw; }
+.tab { display: flex; align-items: center; height: 3.2vw; padding: 0 1.4vw; border-radius: 1.6vw; margin-right: 0.4vw;
+  color: var(--muted); font-size: 1.35vw; font-weight: 600; }
+.tab .icon { width: 1.35vw; height: 1.35vw; margin-right: 0.6vw; }
+.tab.active { color: var(--ink); background: var(--raised2); }
+.topbar .clock { margin-left: auto; color: var(--soft); font-size: 1.5vw; font-weight: 600; font-variant-numeric: tabular-nums; }
+.page { position: absolute; left: 0; right: 0; top: 6.4vw; bottom: 0; padding: 0 var(--edge) 4.8vw; overflow: hidden; }
+
+/* ---- rows and cards ---- */
+.row h2 { margin: 1.6vw 0 0.4vw; }
+.strip { display: flex; overflow: hidden; padding: 1vw var(--edge) 1.2vw; margin: 0 calc(-1 * var(--edge)); }
+.card { flex: 0 0 auto; margin-right: 1.2vw; transition: transform 140ms ease-out; }
+.card .art { position: relative; border-radius: 0.6vw; background: var(--raised); overflow: hidden;
+  display: flex; align-items: center; justify-content: center; }
+.card .img { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: center / cover no-repeat; }
+.card.poster .art { width: 10.5vw; height: 15.75vw; }
+.card.landscape .art { width: 21vw; height: 11.8vw; }
+.card.square .art { width: 12vw; height: 12vw; }
+.card .fallback { padding: 1.2vw; text-align: center; color: var(--muted); font-size: 1.15vw; line-height: 1.3; }
+.card .name, .card .meta { width: 10.5vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .name { margin-top: 0.7vw; font-size: 1.15vw; font-weight: 600; color: var(--soft); }
+.card .meta { margin-top: 0.2vw; font-size: 1.02vw; color: var(--muted); }
+.card.landscape .name, .card.landscape .meta { width: 21vw; }
+.card.square .name, .card.square .meta { width: 12vw; }
+.card.focus { transform: scale(1.07); }
+.card.focus .art { box-shadow: 0 0 0 0.25vw #fff, 0 1vw 2.4vw rgba(0,0,0,0.55); }
+.card.focus .name { color: #fff; }
+.card.placeholder { width: 10.5vw; height: 15.75vw; border-radius: 0.6vw; background: var(--raised); }
+.card .progress { position: absolute; left: 0.6vw; right: 0.6vw; bottom: 0.6vw; height: 0.32vw; background: rgba(0,0,0,0.55);
+  border-radius: 0.2vw; overflow: hidden; }
+.card .progress div, .episode .progress div { height: 100%; background: var(--accent); }
+.grid { display: flex; flex-wrap: wrap; padding-top: 0.4vw; }
+.grid .card { margin: 0 1.2vw 2.4vw 0; }
+.grid .empty { width: 100%; }
+
+.chip { display: inline-flex; align-items: center; height: 2.8vw; padding: 0 1.3vw; border-radius: 1.4vw; background: var(--raised2);
+  color: var(--soft); margin: 0 0.6vw 0.6vw 0; font-size: 1.25vw; font-weight: 600; }
+.chip.active { background: var(--accent-deep); color: #fff; }
+.filters { padding: 0.8vw 0 1.6vw; }
+
+/* ---- sign-in ---- */
+.login, .splash { padding: 4.8vw 7vw; box-sizing: border-box; }
+.splash { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; }
+.login h1 { font-size: 2.8vw; }
+.login .columns { display: flex; margin-top: 2.4vw; }
+.linkbox { width: 46vw; min-height: 24vw; display: flex; flex-wrap: wrap; align-items: flex-start; }
+.linkbox .qr { width: 16vw; height: 16vw; background: #fff; border-radius: 0.8vw; padding: 0.8vw; margin-right: 2.4vw; }
+.linkbox .how { width: 24vw; color: var(--soft); line-height: 1.4; }
+.linkbox .how p { margin: 0 0 0.6vw; }
+.linkbox .url { color: #fff; font-size: 2vw; font-weight: 700; }
+.linkbox .code { width: 100%; font-size: 5vw; letter-spacing: 1.2vw; font-weight: 700; color: #fff; margin-top: 1.6vw; font-variant-numeric: tabular-nums; }
+.login .side { width: 30vw; padding-left: 4vw; border-left: 0.1vw solid #262a33; }
+.login .side .btn { display: flex; width: 100%; max-width: 26vw; margin-bottom: 1.2vw; }
+.emailform { margin: 0.4vw 0 2.4vw; }
+input { display: block; width: 26vw; box-sizing: border-box; font: inherit; font-size: 1.4vw; height: 3.6vw; padding: 0 1.2vw; margin-bottom: 0.9vw;
+  border: 0.15vw solid #2b2f39; border-radius: 0.6vw; background: var(--raised); color: #fff; outline: none; caret-color: var(--accent); }
+input::-webkit-input-placeholder { color: var(--muted); }
+input.focus { border-color: #fff; }
+
+/* ---- search ---- */
+.searchbar { position: absolute; left: var(--edge); top: 7.2vw; width: 52vw; }
+.searchbar .icon { position: absolute; left: 1.3vw; top: 1.2vw; width: 1.6vw; height: 1.6vw; color: var(--muted); }
+.searchbar input.search { width: 100%; height: 4vw; font-size: 1.6vw; padding-left: 4vw; }
+.page.below-search { top: 12vw; }
+
+/* ---- details ---- */
+.detail .backdrop { position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: var(--bg) center / cover no-repeat; }
+.detail .shade { position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+  background: linear-gradient(90deg, rgba(13,15,20,0.97) 0%, rgba(13,15,20,0.9) 40%, rgba(13,15,20,0.5) 70%, rgba(13,15,20,0.35) 100%),
+              linear-gradient(rgba(13,15,20,0) 60%, rgba(13,15,20,0.85) 100%); }
+.detail .info { position: absolute; left: var(--edge); top: 5.6vw; width: 42vw; }
+.detail .logo { display: block; max-width: 30vw; max-height: 9vw; margin-bottom: 2.4vw; }
+.detail .info h1 { font-size: 3.4vw; margin-bottom: 1.6vw; }
+.detail .facts { display: flex; flex-wrap: wrap; align-items: center; color: var(--soft); font-size: 1.3vw; margin-bottom: 1.6vw; }
+.fact { margin-right: 1.4vw; }
+.fact.rating { display: inline-flex; align-items: center; color: #ffd36b; font-weight: 700; }
+.fact.rating .icon { width: 1.25vw; height: 1.25vw; margin-right: 0.4vw; }
+.detail .description { font-size: 1.4vw; line-height: 1.5; color: var(--soft); max-height: 12.6vw; overflow: hidden; margin: 0 0 2.4vw; }
+.detail .actions { display: flex; flex-wrap: wrap; }
+
+/* Series: the episode list sits on its own dark panel so it never fights the backdrop. */
+.detail .side { position: absolute; right: 0; top: 0; bottom: 0; width: 46vw; padding: 3.6vw var(--edge) 0 2.4vw; box-sizing: border-box;
+  overflow: hidden; background: linear-gradient(90deg, rgba(13,15,20,0) 0%, rgba(13,15,20,0.88) 12%, rgba(13,15,20,0.96) 100%); }
+.seasons { white-space: nowrap; overflow: hidden; padding: 0.4vw 0 1.2vw; }
+.episodes { padding-bottom: 4.8vw; }
+.episode { display: flex; align-items: center; padding: 0.8vw; border-radius: 0.8vw; margin-bottom: 0.4vw; }
+.episode.focus { background: #f4f4f6; color: #0d0f14; }
+.episode.future { opacity: 0.5; }
+.episode .thumb { position: relative; flex: 0 0 auto; width: 12vw; height: 6.75vw; border-radius: 0.5vw; background: var(--raised2) center / cover no-repeat;
+  margin-right: 1.4vw; overflow: hidden; }
+.episode .thumb .progress { position: absolute; left: 0; right: 0; bottom: 0; height: 0.32vw; background: rgba(0,0,0,0.55); }
+.episode .text { min-width: 0; }
+.episode .title { font-size: 1.35vw; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.episode .meta { display: flex; align-items: center; font-size: 1.05vw; color: var(--muted); margin: 0.4vw 0 0.4vw; min-height: 1.9vw; }
+.episode .meta .badge { margin: 0 0.8vw 0 0; }
+.episode.focus .meta { color: #4a4d56; }
+.episode .overview { font-size: 1.1vw; line-height: 1.4; max-height: 3.1vw; overflow: hidden; color: var(--muted); }
+.episode.focus .overview { color: #2b2f39; }
+
+/* ---- streams ---- */
+.sbackdrop { position: absolute; left: 0; top: 0; right: 0; height: 22vw; background: center 25% / cover no-repeat; opacity: 0.22; }
+.sbackdrop:after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 100%;
+  background: linear-gradient(rgba(13,15,20,0.2), var(--bg)); }
+.streams .head { position: absolute; left: var(--edge); right: var(--edge); top: 3.2vw; display: flex; align-items: flex-end; }
+.hposter { flex: 0 0 auto; width: 6.4vw; height: 9.6vw; border-radius: 0.5vw; background: var(--raised) center / cover no-repeat;
+  margin-right: 1.6vw; box-shadow: 0 0.8vw 2vw rgba(0,0,0,0.5); }
+.streams .head h1 { margin: 0; }
+.streams .sub { color: var(--soft); font-size: 1.4vw; margin-top: 0.5vw; }
+.streams .status { color: var(--muted); font-size: 1.1vw; margin-top: 0.5vw; }
+.streamlist { position: absolute; left: var(--edge); right: var(--edge); top: 14.4vw; bottom: 0; overflow: hidden; padding-bottom: 4.8vw; }
+.streamlist h2 { color: var(--muted); font-size: 1.1vw; text-transform: uppercase; letter-spacing: 0.12vw; margin: 1.6vw 0 0.8vw; }
+.streamlist h2:first-child { margin-top: 0.4vw; }
+.stream { display: flex; align-items: flex-start; padding: 1.1vw 1.4vw; border-radius: 0.8vw; background: rgba(24,27,34,0.88); margin-bottom: 0.6vw; }
+.stream.focus { background: #f4f4f6; color: #0d0f14; }
+.stream.disabled { opacity: 0.45; }
+.stream .sname { flex: 0 0 auto; width: 13vw; font-weight: 700; font-size: 1.3vw; line-height: 1.3; white-space: pre-line; margin-right: 1.6vw; }
+.stream .sbody { flex: 1; min-width: 0; }
+.stream .stitle { white-space: pre-line; font-size: 1.2vw; line-height: 1.4; max-height: 5vw; overflow: hidden; color: var(--soft);
+  word-wrap: break-word; }
+.stream.focus .stitle { color: #2b2f39; }
+.stream .badges { display: flex; flex-wrap: wrap; align-items: center; margin-top: 0.6vw; }
+.stream.focus .badge { background: rgba(13,15,20,0.08); color: #0d0f14; }
+.stream.focus .badge.warn { background: #ffd36b; color: #3a2a00; }
+.stream.focus .badge.info { background: var(--accent-deep); color: #fff; }
+.stream.focus .badge.muted { background: transparent; color: #4a4d56; }
+
+/* ---- settings ---- */
+.settings { width: 62vw; }
+.settings h2:first-child { margin-top: 2vw; }
+.setting { display: flex; justify-content: space-between; align-items: center; min-height: 3.6vw; padding: 0 1.4vw; border-radius: 0.7vw;
+  margin-bottom: 0.4vw; background: var(--raised); box-sizing: border-box; }
+.setting .value { display: flex; align-items: center; color: var(--muted); max-width: 36vw; text-align: right; }
+.setting.focus .value { color: #2b2f39; }
+.sctl { display: flex; align-items: center; color: var(--muted); }
+.sctl .icon { width: 1.3vw; height: 1.3vw; }
+.svalue { min-width: 9vw; text-align: center; color: var(--ink); font-weight: 600; }
+.setting.focus .sctl, .setting.focus .svalue { color: #0d0f14; }
+.dot { width: 0.7vw; height: 0.7vw; border-radius: 50%; background: var(--muted); margin-right: 0.7vw; }
+.dot.ok { background: #4ade80; }
+.settings .btn { margin: 0.8vw 0 0.4vw; }

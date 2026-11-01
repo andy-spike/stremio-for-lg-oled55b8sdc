@@ -1,0 +1,15 @@
+{
+  "id": "com.local.stremio",
+  "version": "1.2.1",
+  "vendor": "local",
+  "type": "web",
+  "main": "index.html",
+  "title": "Stremio",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "bgColor": "#0d0f14",
+  "disableBackHistoryAPI": true,
+  "handlesRelaunch": true,
+  "spinnerOnLaunch": false,
+  "resolution": "1920x1080"
+}

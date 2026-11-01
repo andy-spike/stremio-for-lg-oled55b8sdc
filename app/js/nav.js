@@ -1,0 +1,98 @@
+// Remote-control focus. Any element with class "focusable" inside the active
+// screen can take focus; arrow keys move to the nearest one in that
+// direction. Scrolling containers (.hscroll rows, .vscroll pages) follow the
+// focused element. Focus is a "focus" class, not DOM focus, except for text
+// inputs, which need real focus to open the TV keyboard.
+
+var Nav = (function () {
+  var root = null;      // element whose focusables are reachable
+  var current = null;
+
+  function setRoot(el, preferred) {
+    root = el;
+    var start = preferred && root.contains(preferred) ? preferred : first();
+    focus(start);
+  }
+
+  function candidates() {
+    if (!root) return [];
+    return U.$all(".focusable", root).filter(function (el) {
+      return el.offsetParent !== null && !el.classList.contains("disabled");
+    });
+  }
+
+  function first() { return candidates()[0] || null; }
+
+  function focus(el) {
+    if (current) {
+      current.classList.remove("focus");
+      if (current.tagName === "INPUT" && current !== el) current.blur();
+    }
+    current = el;
+    if (!el) return;
+    el.classList.add("focus");
+    if (el.tagName === "INPUT") el.focus();
+    reveal(el);
+    if (el.onfocusin2) el.onfocusin2();
+  }
+
+  // Scroll every scrolling ancestor so el is visible with some margin.
+  function reveal(el) {
+    var node = el.parentNode;
+    while (node && node !== document.body) {
+      if (node.classList && node.classList.contains("hscroll")) {
+        var pad = window.innerWidth * 0.06;
+        var left = el.offsetLeft - node.offsetLeft;
+        var target = node.scrollLeft;
+        if (left - pad < node.scrollLeft) target = left - pad;
+        else if (left + el.offsetWidth + pad > node.scrollLeft + node.clientWidth) target = left + el.offsetWidth + pad - node.clientWidth;
+        node.scrollLeft = Math.max(0, target);
+      }
+      if (node.classList && node.classList.contains("vscroll")) {
+        var r = el.getBoundingClientRect(), box = node.getBoundingClientRect();
+        var margin = window.innerHeight * 0.12;
+        if (r.top - margin < box.top) node.scrollTop += r.top - margin - box.top;
+        else if (r.bottom + margin > box.bottom) node.scrollTop += r.bottom + margin - box.bottom;
+      }
+      node = node.parentNode;
+    }
+  }
+
+  // Nearest candidate in a direction, preferring elements that overlap on
+  // the other axis (so moving down in a list stays in the column).
+  function move(dir) {
+    if (!current || !root.contains(current)) { focus(first()); return true; }
+    var a = current.getBoundingClientRect();
+    var ax = a.left + a.width / 2, ay = a.top + a.height / 2;
+    var best = null, bestScore = Infinity, bestInRow = null, bestRowScore = Infinity;
+    candidates().forEach(function (el) {
+      if (el === current) return;
+      var b = el.getBoundingClientRect();
+      var bx = b.left + b.width / 2, by = b.top + b.height / 2;
+      var main, cross, overlap;
+      if (dir === "left") { main = a.left - b.right; cross = Math.abs(ay - by); overlap = b.bottom > a.top && b.top < a.bottom; if (bx >= ax) return; }
+      else if (dir === "right") { main = b.left - a.right; cross = Math.abs(ay - by); overlap = b.bottom > a.top && b.top < a.bottom; if (bx <= ax) return; }
+      else if (dir === "up") { main = a.top - b.bottom; cross = Math.abs(ax - bx); overlap = b.right > a.left && b.left < a.right; if (by >= ay) return; }
+      else { main = b.top - a.bottom; cross = Math.abs(ax - bx); overlap = b.right > a.left && b.left < a.right; if (by <= ay) return; }
+      if (main < -2) main = 0;
+      var score = (dir === "up" || dir === "down")
+        ? main * 1 + cross * (overlap ? 0.3 : 2)          // vertical: rows first, then nearest column
+        : main + cross * (overlap ? 0.5 : 8);            // horizontal: stay in the row
+      if (score < bestScore) { bestScore = score; best = el; }
+      if (overlap && score < bestRowScore) { bestRowScore = score; bestInRow = el; }
+    });
+    // Left/right stay in the current row whenever it has something there.
+    if ((dir === "left" || dir === "right") && bestInRow) best = bestInRow;
+    if (best) { focus(best); return true; }
+    return false;
+  }
+
+  function activate() {
+    if (current && typeof current.onactivate === "function") { current.onactivate(); return true; }
+    if (current && current.tagName !== "INPUT") { current.click(); return true; }
+    return false;
+  }
+
+  return { setRoot: setRoot, focus: focus, move: move, activate: activate, first: first,
+    current: function () { return current; }, reveal: reveal };
+})();

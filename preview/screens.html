@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<!-- Local design preview of the browsing screens (not shipped). Runs the real
+     app with Stremio's default addons, a sample library and stand-in TV
+     services. ?screen=login|home|search|library|detail|series|streams|settings -->
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="../app/css/app.css">
+  <link rel="stylesheet" href="../app/css/player.css">
+</head>
+<body>
+  <div id="screens"></div>
+  <div id="toast"></div>
+  <script>
+    var target = (/screen=(\w+)/.exec(location.search) || [])[1] || "home";
+    localStorage.clear();
+    if (target !== "login") {
+      localStorage.setItem("auth", JSON.stringify({ key: "preview", user: { _id: "u1", email: "andy@example.com" } }));
+      var now = Date.now();
+      function item(id, name, type, poster, vid, off, dur, ago) {
+        return { _id: id, name: name, type: type, poster: poster, posterShape: "poster", removed: false, temp: false,
+          _ctime: new Date(now - 9e8).toISOString(), _mtime: new Date(now - ago).toISOString(),
+          state: { lastWatched: new Date(now - ago).toISOString(), timeOffset: off, duration: dur, video_id: vid, timeWatched: off } };
+      }
+      var P = "https://images.metahub.space/poster/medium/";
+      var lib = {};
+      [item("tt0804503", "Mad Men", "series", P + "tt0804503/img", "tt0804503:1:2", 205000, 2823000, 1e5),
+       item("tt0903747", "Breaking Bad", "series", P + "tt0903747/img", "tt0903747:3:4", 1500000, 2800000, 9e5),
+       item("tt1375666", "Inception", "movie", P + "tt1375666/img", "tt1375666", 3100000, 8880000, 3e6),
+       item("tt0068646", "The Godfather", "movie", P + "tt0068646/img", null, 0, 0, 5e6),
+       item("tt0386676", "The Office", "series", P + "tt0386676/img", null, 0, 0, 6e6)].forEach(function (it) { lib[it._id] = it; });
+      localStorage.setItem("library", JSON.stringify(lib));
+      localStorage.setItem("lastStream:tt0804503:1:2", JSON.stringify({ infoHash: "x" }));
+    }
+  </script>
+  <script src="../app/lib/hls.min.js"></script>
+  <script src="../app/js/util.js"></script>
+  <script src="../app/js/luna.js"></script>
+  <script src="../app/js/account.js"></script>
+  <script src="../app/js/addons.js"></script>
+  <script src="../app/js/engine.js"></script>
+  <script src="../app/js/nav.js"></script>
+  <script src="../app/js/icons.js"></script>
+  <script src="../app/js/subtitles.js"></script>
+  <script src="../app/js/player.js"></script>
+  <script src="../app/js/screens.js"></script>
+  <script src="../app/js/main.js"></script>
+  <script>
+    // Stand-ins for the account API and the TV's streaming server.
+    Account.sync = function () { return Promise.resolve(false); };
+    Account.addonCollection = function () { return Promise.resolve(null); };
+    Engine.ensure = function () { return Promise.resolve(true); };
+    Engine.alive = function () { return Promise.resolve(true); };
+    Engine.detectCaps = function () {};
+    var linkLogin = Account.linkLogin;
+    Account.linkLogin = function () {
+      return Promise.resolve({ code: "K7QX", link: "https://link.stremio.com/K7QX",
+        qrcode: "https://link.stremio.com/qr?data=https%3A%2F%2Flink.stremio.com%2FK7QX", wait: new Promise(function () {}), cancel: function () {} });
+    };
+    var fakeStreams = [
+      { name: "Torrentio\n4k DV | HDR", title: "Mad.Men.S01E02.2160p.DSNP.WEB-DL.DDP5.1.DV.HDR.H.265-MeM\n👤 42 💾 6.1 GB ⚙️ ThePirateBay", infoHash: "a" },
+      { name: "Torrentio\n1080p", title: "Mad.Men.S01E02.1080p.BluRay.x264.DTS-HD.MA.5.1-SiNNERS\n👤 118 💾 4.3 GB ⚙️ 1337x", infoHash: "b" },
+      { name: "Torrentio\n720p", title: "Mad Men S01E02 720p BluRay x265 AV1 10bit\n👤 9 💾 640 MB ⚙️ RARBG", infoHash: "c" },
+      { name: "YouTube", title: "Official trailer", ytId: "abc" }];
+    Addons.streams = function (type, id, onGroup) {
+      return new Promise(function (resolve) {
+        setTimeout(function () { onGroup({ manifest: { name: "Torrentio" } }, fakeStreams.slice(0, 3)); }, 300);
+        setTimeout(function () { onGroup({ manifest: { name: "Trailers" } }, fakeStreams.slice(3)); resolve([]); }, 600);
+      });
+    };
+    window.addEventListener("load", function () {
+      setTimeout(function () {
+        var go = {
+          search: function () { App.push(Screens.search()); var i = U.$("input.search"); i.value = "mad men"; i.dispatchEvent(new Event("input")); },
+          library: function () { App.push(Screens.library()); },
+          settings: function () { App.push(Screens.settings()); },
+          detail: function () { App.push(Screens.detail("movie", "tt1375666", null)); },
+          series: function () { App.push(Screens.detail("series", "tt0804503", null)); },
+          streams: function () {
+            Addons.meta("series", "tt0804503").then(function (m) {
+              App.push(Screens.streams(m, m.videos.filter(function (v) { return v.id === "tt0804503:1:2"; })[0]));
+            });
+          }
+        }[target];
+        if (go) go();
+      }, 2500);
+    });
+  </script>
+</body>
+</html>

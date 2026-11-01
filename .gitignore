@@ -1,0 +1,16 @@
+# Python tooling
+.venv/
+__pycache__/
+
+# Build output: tools/build-ipk.py regenerates these
+*.ipk
+
+# Runtime binaries copied to the TV (~140 MB). Third-party, not ours;
+# see "Runtime binaries" in README.md for where each comes from.
+runtime/bin/
+runtime/lib/
+# Stremio's server.js after tools/patch-server.py (6.4 MB, generated)
+runtime/server.js
+
+# Sample video for the preview pages (24 MB); any short .webm works
+preview/clip.webm
