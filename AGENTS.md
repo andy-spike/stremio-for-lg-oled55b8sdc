@@ -16,6 +16,11 @@ Installing closes the app if it's open; that's expected, don't ask first.
 If the TV is off or unreachable, say so; don't loop. Changes to `runtime/`
 go out with `tools/install-runtime.sh` instead.
 
+## Commit as you go
+
+Commit each finished feature or fix as its own commit (with the version
+bump that shipped it) and push, without waiting to be asked.
+
 ## Code
 
 - `app/` is plain ES5-era JS and CSS for Chromium 53: no build step, no
