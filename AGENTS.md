@@ -31,7 +31,7 @@ bump that shipped it) and push, without waiting to be asked.
 - `runtime/` mirrors `/media/developer/stremio` on the TV. Only
   `runtime/bin/stremio-service` is ours and tracked; the rest is gitignored.
 - Bump `version` in `app/appinfo.json` when shipping a change.
-- Test: `node tests/subtitles.test.js`. Mock pages for screen work:
+- Tests: `node tests/subtitles.test.js` and `node tests/account.test.js`. Mock pages for screen work:
   `preview/screens.html`, `preview/player.html`.
 
 ## Accessing the TV
