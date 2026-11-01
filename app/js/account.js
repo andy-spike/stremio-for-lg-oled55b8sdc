@@ -14,7 +14,7 @@ var Account = (function () {
 
   var auth = U.load("auth", null);        // { key, user: { _id, email } }
   var library = U.load("library", {});    // _id -> LibraryItem
-  var dirty = U.load("libraryDirty", {}); // _id -> true, not yet pushed
+  var dirty = U.load("libraryDirty", {}); // _id -> _mtime when changed, not yet pushed
 
   function api(method, body, timeout) {
     return U.request(API + method, { body: body, timeout: timeout || 20000 }).then(function (r) {
@@ -68,6 +68,7 @@ var Account = (function () {
 
   function logout() {
     var key = auth && auth.key;
+    generation++;   // results of a sync still running belong to the old account
     auth = null; library = {}; dirty = {};
     ["auth", "library", "libraryDirty", "addons"].forEach(U.forget);
     if (key) api("logout", { type: "Logout", authKey: key }).catch(function () {});
@@ -87,30 +88,46 @@ var Account = (function () {
 
   // Pull changes from the account and push local ones. Newest _mtime wins,
   // the same rule the official apps use.
-  var syncing = null;
+  //
+  // dirty[id] holds the item's _mtime when it changed. After an upload a
+  // flag is cleared only if the item hasn't changed again since it was sent,
+  // and a sync requested while one runs starts another when it finishes.
+  var syncing = null, again = false, generation = 0;
   function sync() {
     if (!signedIn()) return Promise.resolve(false);
-    if (syncing) return syncing;
-    syncing = api("datastoreMeta", { authKey: auth.key, collection: "libraryItem" }).then(function (rows) {
+    if (syncing) { again = true; return syncing; }
+    var gen = generation, key = auth.key;
+    function current() { if (gen !== generation) throw new Error("signed out during sync"); }
+    syncing = api("datastoreMeta", { authKey: key, collection: "libraryItem" }).then(function (rows) {
+      current();
       var want = [];
       (rows || []).forEach(function (row) {
         var local = library[row[0]];
         if (!local || mtime(local) < mtime({ _mtime: row[1] })) want.push(row[0]);
       });
-      var push = Object.keys(dirty).filter(function (id) { return library[id]; }).map(function (id) { return library[id]; });
       var chunks = [];
       for (var i = 0; i < want.length; i += 100) chunks.push(want.slice(i, i + 100));
       return chunks.reduce(function (p, ids) {
         return p.then(function () {
-          return api("datastoreGet", { authKey: auth.key, collection: "libraryItem", ids: ids, all: false })
-            .then(function (items) { (items || []).forEach(function (it) { if (it && it._id && !dirty[it._id]) library[it._id] = it; }); });
+          return api("datastoreGet", { authKey: key, collection: "libraryItem", ids: ids, all: false })
+            .then(function (items) { current(); (items || []).forEach(function (it) { if (it && it._id && !dirty[it._id]) library[it._id] = it; }); });
         });
       }, Promise.resolve()).then(function () {
-        if (!push.length) return null;
-        return api("datastorePut", { authKey: auth.key, collection: "libraryItem", changes: push })
-          .then(function () { push.forEach(function (it) { delete dirty[it._id]; }); });
-      }).then(function () { saveLibrary(); return want.length > 0; });
-    }).then(function (changed) { syncing = null; return changed; }, function (e) { syncing = null; throw e; });
+        // Snapshot what is sent, at the moment it is sent.
+        var sent = Object.keys(dirty).filter(function (id) { return library[id]; })
+          .map(function (id) { return { id: id, mtime: dirty[id] }; });
+        if (!sent.length) return null;
+        var changes = sent.map(function (x) { return JSON.parse(JSON.stringify(library[x.id])); });
+        return api("datastorePut", { authKey: key, collection: "libraryItem", changes: changes }).then(function () {
+          current();
+          sent.forEach(function (x) { if (dirty[x.id] === x.mtime) delete dirty[x.id]; });
+        });
+      }).then(function () { current(); saveLibrary(); return want.length > 0; });
+    }).then(function (changed) {
+      syncing = null;
+      if (again) { again = false; return sync().then(function (more) { return changed || more; }, function () { return changed; }); }
+      return changed;
+    }, function (e) { syncing = null; again = false; throw e; });
     return syncing;
   }
 
@@ -126,7 +143,7 @@ var Account = (function () {
   function put(item, pushNow) {
     item._mtime = U.nowIso();
     library[item._id] = item;
-    dirty[item._id] = true;
+    dirty[item._id] = item._mtime;
     saveLibrary();
     if (pushNow) push();
   }
