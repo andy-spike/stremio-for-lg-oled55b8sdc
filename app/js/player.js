@@ -401,6 +401,7 @@ var Player = (function () {
       if (menuOpen()) return;   // the side menu owns focus; the overlay is already up
       var wasOpen = overlayOpen();
       overlay.classList.remove("hidden");
+      if (!wasOpen) tick();   // fresh times and bars before the first frame
       subs.raise(true);
       if (!wasOpen || focusEl) App.refocus(focusEl || btnPlay);
       bumpHide();
@@ -416,13 +417,19 @@ var Player = (function () {
       if (media.paused) media.play(); else media.pause();
     }
 
+    // Four times a second. The controls' text and bars are only updated
+    // while they're on screen (showOverlay runs this once when they open),
+    // so plain playback costs no layout or painting.
     function tick() {
       var t = media.currentTime || 0, d = media.duration;
-      if (pendingSeek === null) {
-        timeNow.textContent = U.clock(t);
-        setPos(isFinite(d) && d ? t / d : 0);
-      }
       if (overlayOpen()) {
+        if (pendingSeek === null) {
+          timeNow.textContent = U.clock(t);
+          setPos(isFinite(d) && d ? t / d : 0);
+        }
+        var b = media.buffered, end = 0;
+        for (var i = 0; i < b.length; i++) if (b.start(i) <= t + 1 && b.end(i) > end) end = b.end(i);
+        barBuf.style.width = (isFinite(d) && d ? end / d * 100 : 0) + "%";
         var now = new Date();
         clockEl.textContent = hhmm(now);
         if (isFinite(d) && d) {
@@ -430,9 +437,6 @@ var Player = (function () {
           endsEl.textContent = tr("Ends at {time}", { time: hhmm(new Date(now.getTime() + (d - t) * 1000 / (media.playbackRate || 1))) });
         }
       }
-      var b = media.buffered, end = 0;
-      for (var i = 0; i < b.length; i++) if (b.start(i) <= t + 1 && b.end(i) > end) end = b.end(i);
-      barBuf.style.width = (isFinite(d) && d ? end / d * 100 : 0) + "%";
       if (mode === "convert") syncHlsCues();
       subs.update(t);
       var nearEnd = nextVideo && !nextDismissed && isFinite(d) && d > 300 && d - t < 30;

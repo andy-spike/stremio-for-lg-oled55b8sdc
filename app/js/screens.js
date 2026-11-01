@@ -41,20 +41,47 @@ var Screens = (function () {
   // A focusable poster card. item has id/_id, name, type, poster, posterShape.
   // The title sits under the artwork, so a poster that fails to load still
   // shows what the card is instead of an empty tile.
+  //
+  // Memory: posters load only when they're about to be seen (showArt: the
+  // first cards of a row, then ahead of the focus), and Stremio's poster
+  // service sends its 300x450 size, which covers a card (216x324) and
+  // decodes to a third of the default 500x750.
   function card(item, opts) {
     opts = opts || {};
-    var img = el("div.art", {}, [el("span.fallback", { text: item.name || "" }),
-      item.poster ? el("div.img", { style: { backgroundImage: "url(\"" + String(item.poster).replace(/"/g, "%22") + "\")" } }) : null,
+    var pic = null;
+    if (item.poster) {
+      pic = el("div.img");
+      pic.bgUrl = String(item.poster).replace("/poster/medium/", "/poster/small/").replace(/"/g, "%22");
+    }
+    var img = el("div.art", {}, [el("span.fallback", { text: item.name || "" }), pic,
       opts.progress ? el("div.progress", {}, el("div", { style: { width: Math.min(100, opts.progress * 100) + "%" } })) : null]);
     var c = el("div.card.focusable." + posterClass(item.posterShape), { "data-key": "card:" + (item.id || item._id) }, [img,
       el("div.name", { text: item.name || "" }),
       opts.label ? el("div.meta", { text: opts.label }) : null]);
     c.onactivate = function () { App.push(detail(item.type, item.id || item._id, item.id ? item : null)); };
+    c.onfocusin2 = function () { showArtNear(c); };
     return c;
+  }
+
+  function showArt(c) {
+    var pic = c && c.querySelector && c.querySelector(".img");
+    if (pic && pic.bgUrl) { pic.style.backgroundImage = "url(\"" + pic.bgUrl + "\")"; pic.bgUrl = null; }
+  }
+  // Load the first n posters in a row or grid.
+  function showArtIn(container, n) {
+    var cards = container.querySelectorAll(".card");
+    for (var i = 0; i < cards.length && i < n; i++) showArt(cards[i]);
+  }
+  // Load posters up to 10 cards past the focused one.
+  function showArtNear(c) {
+    var kids = c.parentNode ? c.parentNode.children : [];
+    var at = Array.prototype.indexOf.call(kids, c);
+    for (var i = 0; i < kids.length && i <= at + 10; i++) showArt(kids[i]);
   }
 
   function row(title, cards) {
     var strip = el("div.strip.hscroll", {}, cards);
+    showArtIn(strip, 10);
     return el("div.row", {}, [el("h2", { text: title }), strip]);
   }
 
@@ -202,6 +229,7 @@ var Screens = (function () {
           var strip = r.el.querySelector(".strip");
           U.clear(strip);
           metas.slice(0, 40).forEach(function (m) { strip.appendChild(card(m)); });
+          showArtIn(strip, 10);
           // Until the user moves, keep focus on the first poster rather than the tabs.
           if (App.top() !== s) return;
           var cur = Nav.current();
@@ -275,6 +303,7 @@ var Screens = (function () {
       if (!items.length) grid.appendChild(el("div.empty", { text: !Account.signedIn() ? tr("Sign in to see your library.")
         : filter === "all" ? tr("Your library is empty. Open a movie or series and choose “Add to library”.") : tr("Nothing here yet.") }));
       items.forEach(function (it) { grid.appendChild(card(it)); });
+      showArtIn(grid, Infinity);
     }
     build();
     s.refresh = build;
