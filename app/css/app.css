@@ -183,6 +183,7 @@ input.focus { border-color: #fff; }
   margin-bottom: 0.4vw; background: var(--raised); box-sizing: border-box; }
 .setting .value { display: flex; align-items: center; color: var(--muted); max-width: 36vw; text-align: right; }
 .setting.focus .value { color: #2b2f39; }
+.setting.info .value { flex: 1 1 auto; justify-content: flex-end; margin-left: 2vw; line-height: 1.4; padding: 0.6vw 0; }
 .sctl { display: flex; align-items: center; color: var(--muted); }
 .sctl .icon { width: 1.3vw; height: 1.3vw; }
 .svalue { min-width: 9vw; text-align: center; color: var(--ink); font-weight: 600; }

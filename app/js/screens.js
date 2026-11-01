@@ -523,7 +523,7 @@ var Screens = (function () {
     subLangRow.onactivate = function () { App.push(subLanguages()); };
     var rows = [
       el("h2", { text: "Account" }),
-      el("div.setting", {}, [el("span", { text: u ? "Signed in as" : "Not signed in" }), el("span.value", { text: u ? u.email : "" })]),
+      info(u ? "Signed in as" : "Not signed in", el("span.value", { text: u ? u.email : "" })),
       u ? button("Sign out", function () { Account.logout(); Addons.reset(); U.forget("guest"); App.reset(login()); }, "", "signOut")
         : button("Sign in", function () { U.forget("guest"); App.reset(login()); }, "primary", "mail"),
       el("h2", { text: "Playback" }),
@@ -534,10 +534,12 @@ var Screens = (function () {
       choice("Subtitle background", "subBg", [["none", "None"], ["translucent", "Translucent"], ["solid", "Solid"]], "none"),
       choice("Subtitle color", "subColor", [["white", "White"], ["yellow", "Yellow"]], "white"),
       el("h2", { text: "About" }),
-      el("div.setting", {}, [el("span", { text: "Streaming server" }), serverState]),
-      el("div.setting", {}, [el("span", { text: "Addons" }), el("span.value", { text: Addons.all().map(function (a) { return a.manifest.name; }).join(", ") })]),
-      el("div.setting", {}, [el("span", { text: "Version" }), versionEl])
+      info("Streaming server", serverState),
+      info("Addons", el("span.value", { text: Addons.all().map(function (a) { return a.manifest.name; }).join(", ") })),
+      info("Version", versionEl)
     ];
+    // Read-only rows still take focus, so the arrows reach (and scroll to) them.
+    function info(label, value) { return el("div.setting.info.focusable", {}, [el("span", { text: label }), value]); }
     var s = { el: screen("settings", [topBar("settings"), el("div.page.vscroll", {}, el("div.settings", {}, rows))]) };
     Engine.alive().then(function (ok) {
       U.clear(serverState).appendChild(el("span.dot" + (ok ? ".ok" : "")));

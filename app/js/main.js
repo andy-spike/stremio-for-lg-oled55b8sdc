@@ -99,6 +99,14 @@ var App = (function () {
       var el = e.target.closest ? e.target.closest(".focusable") : null;
       if (el && el.onactivate) { e.preventDefault(); el.onactivate(); }
     }, true);
+    // The Magic Remote's scroll wheel scrolls the page under the pointer.
+    document.addEventListener("mousewheel", function (e) {
+      var node = e.target;
+      while (node && node !== document.body && !(node.classList && node.classList.contains("vscroll"))) node = node.parentNode;
+      if (!node || node === document.body || !Nav.contains(node)) return;
+      e.preventDefault();
+      node.scrollTop += e.deltaY || -e.wheelDelta || 0;
+    });
     // Coming back to the app: refresh the library from the account.
     document.addEventListener("webkitvisibilitychange", function () {
       var t = top();

@@ -64,10 +64,17 @@ var Nav = (function () {
         node.scrollLeft = Math.max(0, target);
       }
       if (node.classList && node.classList.contains("vscroll")) {
-        var r = el.getBoundingClientRect(), box = node.getBoundingClientRect();
-        var margin = window.innerHeight * 0.12;
-        if (r.top - margin < box.top) node.scrollTop += r.top - margin - box.top;
-        else if (r.bottom + margin > box.bottom) node.scrollTop += r.bottom + margin - box.bottom;
+        // The first and last items scroll all the way, so headings above
+        // the first and text below the last are never left cut off.
+        var items = node.querySelectorAll(".focusable");
+        if (el === items[0]) node.scrollTop = 0;
+        else if (el === items[items.length - 1]) node.scrollTop = node.scrollHeight;
+        else {
+          var r = el.getBoundingClientRect(), box = node.getBoundingClientRect();
+          var margin = window.innerHeight * 0.12;
+          if (r.top - margin < box.top) node.scrollTop += r.top - margin - box.top;
+          else if (r.bottom + margin > box.bottom) node.scrollTop += r.bottom + margin - box.bottom;
+        }
       }
       node = node.parentNode;
     }
