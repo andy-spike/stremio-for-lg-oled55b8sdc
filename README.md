@@ -55,10 +55,7 @@ sends none of the analytics the official apps send (`Events`, `SeekLog`,
 ```sh
 python3 -I tools/patch-server.py <official server.js> runtime/server.js
 tools/install-runtime.sh                 # runtime -> /media/developer/stremio
-python3 -I tools/build-ipk.py            # -> dist/com.local.stremio_<version>_all.ipk
-bin/tv 'cat > /tmp/stremio.ipk' < dist/com.local.stremio_<version>_all.ipk
-bin/tv 'luna-send -n 1 luna://com.webos.appInstallService/dev/install \
-  "{\"id\":\"com.ares.defaultName\",\"ipkUrl\":\"/tmp/stremio.ipk\",\"subscribe\":true}" < /dev/null'
+tools/deploy.sh                          # build -> dist/, install on the TV, open the app
 ```
 
 Bump `version` in `app/appinfo.json` for each release.

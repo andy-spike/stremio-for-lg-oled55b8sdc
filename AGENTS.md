@@ -3,6 +3,19 @@
 A custom Stremio client for Andy's LG OLED55B8SDC (webOS 4, Chromium 53,
 rooted via Homebrew Channel). README.md explains how it works; read it first.
 
+## Every change goes to the TV right away
+
+Andy wants to see every change on the TV as soon as it's made. After each
+change to `app/`, bump the patch `version` in `app/appinfo.json` and run:
+
+```sh
+tools/deploy.sh       # build, install on the TV, open the app
+```
+
+Installing closes the app if it's open; that's expected, don't ask first.
+If the TV is off or unreachable, say so; don't loop. Changes to `runtime/`
+go out with `tools/install-runtime.sh` instead.
+
 ## Code
 
 - `app/` is plain ES5-era JS and CSS for Chromium 53: no build step, no
