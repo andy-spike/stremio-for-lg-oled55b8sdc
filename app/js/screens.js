@@ -487,18 +487,30 @@ var Screens = (function () {
       info.appendChild(detailSkeleton());
       if (type === "series") side.appendChild(episodesSkeleton()); else side.classList.add("hidden");
     }
-    Addons.meta(type, id).then(function (m) {
-      if (!m) {
-        if (!meta) { U.clear(side).classList.add("hidden"); U.clear(info).appendChild(el("div.error", { text: tr("No addon has details for this title.") })); }
-        else { full = true; render(); if (App.top() === s) App.refocus(Nav.current()); }   // play from the preview
-        return;
-      }
-      var focused = Nav.current();
-      meta = m;
-      full = true;
-      render();
-      if (App.top() === s) App.refocus(focused);
-    });
+    // Right after the TV turns on, Wi-Fi can take a minute to connect: keep
+    // retrying while this screen is open instead of giving up.
+    var closed = false, retryTimer = null;
+    function load() {
+      Addons.meta(type, id).then(function (m) {
+        if (closed) return;
+        if (!m) {
+          if (!meta) { U.clear(side).classList.add("hidden"); U.clear(info).appendChild(el("div.error", { text: tr("No addon has details for this title.") })); }
+          else { full = true; render(); if (App.top() === s) App.refocus(Nav.current()); }   // play from the preview
+          return;
+        }
+        var focused = Nav.current();
+        meta = m;
+        full = true;
+        render();
+        if (App.top() === s) App.refocus(focused);
+      }, function () {
+        if (closed) return;
+        if (!meta) { U.clear(side).classList.add("hidden"); U.clear(info).appendChild(el("div.error", { text: tr("Can't reach the internet yet. Trying again…") })); }
+        retryTimer = setTimeout(load, 3000);
+      });
+    }
+    load();
+    s.destroy = function () { closed = true; clearTimeout(retryTimer); };
     s.initialFocus = function () { return s.el.querySelector(".btn.primary"); };
     s.show = function (returning) { if (returning && meta) render(); };   // App.pop restores focus by data-key
     return s;
@@ -591,7 +603,7 @@ var Screens = (function () {
     function setStatus() {
       var n = entries.length;
       var parts = [];
-      if (!done) parts.push(tr("Loading streams… {a} of {b} addons", { a: answered, b: addonCount }));
+      if (!done || (addonCount && !answered)) parts.push(tr("Loading streams… {a} of {b} addons", { a: answered, b: addonCount }));
       else parts.push(n === 1 ? tr("1 stream") : tr("{n} streams", { n: n }));
       if (hidden) parts.push(tr("{n} not playable on the TV, hidden", { n: hidden }));
       status.textContent = addonCount || n ? parts.join("  ·  ") : "";
@@ -621,6 +633,7 @@ var Screens = (function () {
       shown.forEach(function (e) { list.appendChild(row(e)); });
       if (!done && !entries.length) list.appendChild(streamsSkeleton());
       if (done && !entries.length) list.appendChild(el("div.empty", { text: hidden ? tr("None of the streams found can play on the TV.")
+        : addonCount && !answered ? tr("Can't reach your stream addons yet. Trying again…")
         : tr("No streams found. Install stream addons (for example Torrentio) from stremio.com on your phone or computer — they sync to the TV after you sign in.") }));
       if (App.top() !== s) return;
       var again = keep && Nav.findSame(s.el, keep);
@@ -657,19 +670,29 @@ var Screens = (function () {
     setStatus();
     list.appendChild(streamsSkeleton());
     filters.classList.add("hidden");
-    Addons.streams(meta.type, video.id, function (addon, found) {
-      answered++;
-      found.forEach(function (st) {
-        var playable = !st.ytId && !st.externalUrl && (st.infoHash || st.url);
-        if (!playable) { hidden++; return; }
-        var key = streamKey(st);
-        if (seen[key]) return;   // the same file from two addons
-        seen[key] = true;
-        entries.push({ st: st, key: key, order: order++, d: describe(st, addon.manifest.name) });
+    // No addon answered (e.g. the TV is still connecting): try again shortly.
+    var closed = false, retryTimer = null;
+    function load() {
+      Addons.streams(meta.type, video.id, function (addon, found) {
+        if (closed) return;
+        answered++;
+        found.forEach(function (st) {
+          var playable = !st.ytId && !st.externalUrl && (st.infoHash || st.url);
+          if (!playable) { hidden++; return; }
+          var key = streamKey(st);
+          if (seen[key]) return;   // the same file from two addons
+          seen[key] = true;
+          entries.push({ st: st, key: key, order: order++, d: describe(st, addon.manifest.name) });
+        });
+        setStatus();
+        render();
+      }).then(function () {
+        if (closed) return;
+        done = true; setStatus(); render();
+        if (addonCount && !answered) retryTimer = setTimeout(load, 3000);
       });
-      setStatus();
-      render();
-    }).then(function () { done = true; setStatus(); render(); });
+    }
+    load();
 
     // Up from the top row goes to the selected filter, not the nearest chip.
     s.key = function (code) {
@@ -684,6 +707,7 @@ var Screens = (function () {
       return (lastKey && list.querySelector("[data-key=\"st:" + lastKey.replace(/"/g, "\\\"") + "\"]")) || list.querySelector(".stream.focusable");
     };
     s.streamsFor = video.id;
+    s.destroy = function () { closed = true; clearTimeout(retryTimer); };
     return s;
   }
 

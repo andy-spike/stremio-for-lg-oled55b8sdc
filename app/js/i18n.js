@@ -103,6 +103,13 @@ var I18n = (function () {
     "Coming {date}": ["Llega el {date}", "Disponible le {date}", "Ab {date}", "Chega em {date}"],
     "No addon has details for this title.": ["Ningún complemento tiene detalles de este título.", "Aucune extension n’a de détails pour ce titre.",
       "Kein Add-on hat Details zu diesem Titel.", "Nenhum complemento tem detalhes deste título."],
+    "Can't reach the internet yet. Trying again…": ["Todavía no hay conexión a internet. Reintentando…",
+      "Pas encore de connexion à Internet. Nouvelle tentative…", "Noch keine Internetverbindung. Neuer Versuch…",
+      "Ainda sem conexão com a internet. Tentando novamente…"],
+    "Can't reach your stream addons yet. Trying again…": ["Todavía no se puede conectar con tus complementos de fuentes. Reintentando…",
+      "Impossible de joindre vos extensions de sources pour l’instant. Nouvelle tentative…",
+      "Deine Stream-Add-ons sind noch nicht erreichbar. Neuer Versuch…",
+      "Ainda não foi possível acessar seus complementos de fontes. Tentando novamente…"],
 
     // ---- stream list ----
     "Loading streams… {a} of {b} addons": ["Cargando fuentes… {a} de {b} complementos", "Chargement des sources… {a} sur {b} extensions",

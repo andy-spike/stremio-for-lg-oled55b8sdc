@@ -92,7 +92,7 @@ var U = (function () {
         headers: opts.body === undefined ? {} : { "content-type": "application/json" },
         body: opts.body === undefined ? undefined : JSON.stringify(opts.body)
       }).then(function (res) {
-        if (!res.ok) throw new Error(res.status + " " + res.statusText + ": " + url);
+        if (!res.ok) { var err = new Error(res.status + " " + res.statusText + ": " + url); err.status = res.status; throw err; }
         return opts.text ? res.text() : res.json();
       }).then(function (v) {
         if (!done) { done = true; clearTimeout(timer); resolve(v); }

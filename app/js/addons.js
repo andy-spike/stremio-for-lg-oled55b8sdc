@@ -101,15 +101,24 @@ var Addons = (function () {
   }
 
   // First addon (in collection order) that returns a meta wins, like Stremio.
+  // Resolves null when addons answered but none has the title; rejects with
+  // e.offline when none could be reached (e.g. the TV is still connecting).
   function meta(type, id) {
     var candidates = all().filter(function (a) { return supports(a, "meta", type, id); });
+    var reached = false;
     return candidates.reduce(function (p, addon) {
       return p.then(function (found) {
         if (found) return found;
         return U.request(url(addon, "meta", type, id), { timeout: 20000 })
-          .then(function (r) { return r && r.meta ? r.meta : null; }, function () { return null; });
+          .then(function (r) { reached = true; return r && r.meta ? r.meta : null; },
+            function (e) { if (e && e.status) reached = true; return null; });
       });
-    }, Promise.resolve(null));
+    }, Promise.resolve(null)).then(function (m) {
+      if (m || reached || !candidates.length) return m;
+      var e = new Error("No addon could be reached");
+      e.offline = true;
+      throw e;
+    });
   }
 
   // Streams from every addon in parallel. onGroup(addon, streams) is called
