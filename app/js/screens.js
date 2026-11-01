@@ -418,72 +418,180 @@ var Screens = (function () {
 
   // ---------- streams ----------
 
-  function badges(stream) {
-    var t = [stream.name, stream.title, stream.description].filter(Boolean).join(" ");
-    var out = [];
-    if (/2160p|\b4k\b|\buhd\b/i.test(t)) out.push(["4K", ""]);
-    else if (/1080p/i.test(t)) out.push(["1080p", ""]);
-    else if (/720p/i.test(t)) out.push(["720p", ""]);
-    if (/\b(dv|dovi|dolby ?vision)\b/i.test(t)) out.push(["Dolby Vision", ""]);
-    else if (/\bhdr(10\+?)?\b/i.test(t)) out.push(["HDR", ""]);
-    if (/\bav1\b/i.test(t)) out.push(["AV1 · may not play", "warn"]);
-    if (/\bdts\b/i.test(t)) out.push(["DTS · audio converted", "info"]);
-    var seeds = /👤\s?(\d+)/.exec(t);
-    if (seeds) out.push([seeds[1], "", "peers"]);
-    var size = /(\d+(?:\.\d+)?)\s?(GB|MB)\b/i.exec(t);
-    if (size) out.push([size[1] + " " + size[2].toUpperCase(), "", "download"]);
-    var source = /⚙️?\s*([^\n👤💾]+)/.exec(t);
-    if (source) out.push([source[1].trim(), "muted"]);
-    return out;
+  // What a stream's name/title says about it. Addons pack this into free
+  // text ("Torrentio\n4k DV | HDR", "...WEB-DL DDP5.1 H.265...\n👤 25 💾 4.9 GB
+  // ⚙️ TorrentGalaxy\n🇬🇧 / 🇮🇹"); pull it out so rows can show it plainly.
+  var FLAG_LANGS = { GB: "English", US: "English", ES: "Spanish", MX: "Spanish", AR: "Spanish", IT: "Italian", FR: "French",
+    DE: "German", PT: "Portuguese", BR: "Portuguese", RU: "Russian", JP: "Japanese", KR: "Korean", CN: "Chinese",
+    NL: "Dutch", PL: "Polish", TR: "Turkish", IN: "Hindi", SE: "Swedish", DK: "Danish", NO: "Norwegian", FI: "Finnish",
+    GR: "Greek", HU: "Hungarian", CZ: "Czech", UA: "Ukrainian", IL: "Hebrew", SA: "Arabic", TH: "Thai", VN: "Vietnamese" };
+  var TIERS = [["4k", "4K"], ["1080p", "1080p"], ["720p", "720p"], ["sd", "SD"]];
+
+  function describe(st, addonName) {
+    var hints = st.behaviorHints || {};
+    var text = [st.name, st.title, st.description].filter(Boolean).join("\n");
+    var t = text + " " + (hints.filename || "");
+    function has(re) { return re.test(t); }
+    var d = { tier: "sd", tags: [] };
+    if (has(/2160p|\b4k\b|\buhd\b/i)) d.tier = "4k";
+    else if (has(/1080[pi]/i)) d.tier = "1080p";
+    else if (has(/720p/i)) d.tier = "720p";
+    d.quality = d.tier === "sd" ? (has(/480p/i) ? "480p" : "SD") : TIERS.filter(function (x) { return x[0] === d.tier; })[0][1];
+    d.hdr = has(/\b(dv|dovi|dolby ?vision)\b/i) ? "Dolby Vision" : has(/\bhdr10\+|\bhdr10plus/i) ? "HDR10+" : has(/\bhdr(10)?\b/i) ? "HDR" : "";
+    // Source, video, audio: short plain words.
+    var source = has(/\bremux\b/i) ? "Remux" : has(/blu-?ray|bdrip|brrip|\bbd\b/i) ? "Blu-ray" : has(/web-?dl|webrip|\bweb\b/i) ? "Web"
+      : has(/hdtv/i) ? "TV" : has(/dvd/i) ? "DVD" : "";
+    if (source) d.tags.push([source]);
+    d.av1 = has(/\bav1\b/i);
+    var video = d.av1 ? "AV1" : has(/x\.?265|h\.?\s?265|hevc/i) ? "HEVC" : has(/x\.?264|h\.?\s?264|\bavc\b/i) ? "H.264" : has(/xvid|divx/i) ? "XviD" : "";
+    if (video) d.tags.push([video + (d.av1 ? " · may not play" : ""), d.av1 ? "warn" : ""]);
+    var ch = /\b([257])[ .]1\b/.exec(t);
+    ch = ch ? " " + ch[1] + ".1" : "";
+    d.dts = has(/\bdts/i);
+    var audio = d.dts ? "DTS" : has(/atmos/i) ? "Atmos" : has(/truehd/i) ? "TrueHD" : has(/\bddp|dd\+|e-?ac-?3/i) ? "Dolby Digital+"
+      : has(/\bdd\b|\bac-?3\b|dd[25]\.?[01]/i) ? "Dolby Digital" : has(/\baac/i) ? "AAC" : "";
+    if (audio) d.tags.push([audio + ch + (d.dts ? " · converted" : ""), d.dts ? "info" : ""]);
+    // Languages from flag emoji (the TV can't draw flags) and common words.
+    var langs = [];
+    var flags = text.match(/\uD83C[\uDDE6-\uDDFF]\uD83C[\uDDE6-\uDDFF]/g) || [];
+    flags.forEach(function (f) {
+      var code = String.fromCharCode(f.charCodeAt(1) - 0xDDE6 + 65, f.charCodeAt(3) - 0xDDE6 + 65);
+      var name = FLAG_LANGS[code] || code;
+      if (langs.indexOf(name) < 0) langs.push(name);
+    });
+    if (has(/castellano|latino|español|spanish/i) && langs.indexOf("Spanish") < 0) langs.push("Spanish");
+    if (has(/multi[ -]?(audio|lang)|dual[ -]?audio/i) && !langs.length) langs.push("Multi audio");
+    if (langs.length) d.tags.push([langs.join(" · "), "", "audio"]);
+    var seeds = /👤\s?(\d+)/.exec(text);
+    d.seeds = seeds ? +seeds[1] : null;
+    var size = /💾\s?(\d+(?:\.\d+)?)\s?(GB|MB)/i.exec(text) || /\b(\d+(?:\.\d+)?)\s?(GB|MB)\b/i.exec(text);
+    d.size = size ? (+size[1]).toFixed(size[2].toUpperCase() === "GB" && +size[1] < 10 ? 1 : 0) + " " + size[2].toUpperCase() : "";
+    var provider = /⚙️?\s*([^\n👤💾]+)/.exec(text);
+    d.source = [addonName, provider ? provider[1].trim() : ""].filter(Boolean).join(" · ");
+    // The file name reads best; the torrent/pack name is extra detail.
+    var lines = (st.title || st.description || "").split("\n").filter(function (l) { return l && !/👤|💾|⚙|\uD83C[\uDDE6-\uDDFF]/.test(l); });
+    var file = hints.filename || lines[lines.length - 1] || st.name || addonName || "";
+    file = file.split("/").pop();
+    d.title = words(file.replace(/\.(mkv|mp4|avi|m4v|webm|ts)$/i, ""));
+    var pack = lines.length > 1 ? words(lines[0]) : "";
+    d.pack = pack && pack !== d.title ? pack : "";
+    return d;
   }
 
-  // Addons append a metadata line of emoji (👤 seeders, 💾 size, ⚙️ source);
-  // those become badges, so drop them from the title text.
-  function cleanTitle(text) {
-    return text.split("\n").filter(function (line) { return !/👤|💾|⚙/.test(line); }).join("\n").trim();
+  // "Mad.Men.S01E02.DDP5.1" -> "Mad Men S01E02 DDP5.1": dots and underscores
+  // become spaces, but audio channels (5.1, 7.1, 2.0) keep theirs.
+  function words(name) {
+    return name.replace(/[._]+/g, " ").replace(/\s+/g, " ").replace(/([257]) ([01])(?=[\s\-]|$)/g, "$1.$2").trim();
   }
+
+  function streamKey(st) { return st.infoHash ? st.infoHash.toLowerCase() + ":" + (st.fileIdx || 0) : st.url || st.name || ""; }
 
   function streams(meta, video) {
     var list = el("div.streamlist.vscroll");
     var status = el("div.status");
     var epName = video.title || video.name;
     var label = video.season !== undefined ? "Season " + video.season + "  ·  Episode " + video.episode + (epName ? "  —  " + epName : "") : "";
+    var filters = el("div.filters.sfilters");
     var head = el("div.head", {}, [el("div.htext", {}, [el("h1", { text: meta.name }), label ? el("div.sub", { text: label }) : null, status])]);
     if (meta.poster) head.insertBefore(el("div.hposter", { style: { backgroundImage: "url(\"" + meta.poster + "\")" } }), head.firstChild);
-    var s = { el: screen("streams", [meta.background ? el("div.sbackdrop", { style: { backgroundImage: "url(\"" + meta.background + "\")" } }) : null, head, list]) };
-    var all = [];
-    var pending = Addons.all().filter(function (a) { return Addons.supports(a, "stream", meta.type, video.id); }).length;
-    status.textContent = pending ? "Loading streams from " + pending + " addon" + (pending > 1 ? "s" : "") + "…" : "";
+    var s = { el: screen("streams", [meta.background ? el("div.sbackdrop", { style: { backgroundImage: "url(\"" + meta.background + "\")" } }) : null,
+      head, el("div.sbody2", {}, [filters, list])]) };
+    var last = U.lastStream(video.id), lastKey = last ? streamKey(last) : null;
+    var entries = [], seen = {}, hidden = 0, filter = "all", order = 0, done = false;
+    var addonCount = Addons.all().filter(function (a) { return Addons.supports(a, "stream", meta.type, video.id); }).length, answered = 0;
 
-    Addons.streams(meta.type, video.id, function (addon, found) {
-      if (!found.length) return;
-      list.appendChild(el("h2", { text: addon.manifest.name }));
-      found.forEach(function (st) {
-        all.push(st);
-        var playable = !st.ytId && !st.externalUrl && (st.infoHash || st.url);
-        var r = el("div.stream.focusable" + (playable ? "" : ".disabled"), { "data-key": "st:" + (st.infoHash ? st.infoHash + ":" + (st.fileIdx || 0) : st.url || st.name) }, [
-          el("div.sname", { text: st.name || addon.manifest.name }),
-          el("div.sbody", {}, [
-            el("div.stitle", { text: cleanTitle(st.title || st.description || "") }),
-            el("div.badges", {}, badges(st).map(function (b) {
-              return el("span.badge" + (b[1] ? "." + b[1] : ""), {}, [b[2] ? Icons.svg(b[2]) : null, el("span", { text: b[0] })]);
-            }).concat(playable ? [] : [el("span.badge.warn", { text: "Not playable on TV" })]))
-          ])
-        ]);
-        r.onactivate = function () {
-          if (!playable) return;
-          U.setLastStream(video.id, st);
-          Player.open({ meta: meta, video: video, stream: st, streams: all });
-        };
-        list.appendChild(r);
+    function setStatus() {
+      var n = entries.length;
+      var parts = [];
+      if (!done) parts.push("Loading streams… " + answered + " of " + addonCount + " addons");
+      else parts.push(n + (n === 1 ? " stream" : " streams"));
+      if (hidden) parts.push(hidden + " not playable on the TV, hidden");
+      status.textContent = addonCount || n ? parts.join("  ·  ") : "";
+    }
+
+    function render() {
+      var keep = Nav.current() && s.el.contains(Nav.current()) ? Nav.current() : null;
+      // Filter chips: only qualities that exist.
+      U.clear(filters);
+      var counts = { all: entries.length };
+      entries.forEach(function (e) { counts[e.d.tier] = (counts[e.d.tier] || 0) + 1; });
+      if (filter !== "all" && !counts[filter]) filter = "all";
+      [["all", "All"]].concat(TIERS).forEach(function (f) {
+        if (!counts[f[0]] || (f[0] !== "all" && counts[f[0]] === entries.length)) return;
+        var c = el("div.chip.focusable" + (filter === f[0] ? ".active" : ""), { "data-key": "sf:" + f[0] },
+          [el("span", { text: f[1] }), el("span.ccount", { text: String(counts[f[0]]) })]);
+        c.onactivate = function () { filter = f[0]; render(); list.scrollTop = 0; };
+        filters.appendChild(c);
       });
-      if (App.top() === s && (!Nav.current() || !s.el.contains(Nav.current()))) App.refocus();
-    }).then(function () {
-      status.textContent = all.length ? all.length + (all.length === 1 ? " stream" : " streams") : "";
-      if (!all.length) list.appendChild(el("div.empty", { text: "No streams found. Install stream addons (for example Torrentio) " +
-        "from stremio.com on your phone or computer — they sync to the TV after you sign in." }));
-    });
-    s.initialFocus = function () { return list.querySelector(".stream.focusable:not(.disabled)"); };
+      filters.classList.toggle("hidden", filters.childNodes.length < 2);
+      // Best first: quality, then streams that should play, then addon order.
+      var rank = { "4k": 0, "1080p": 1, "720p": 2, sd: 3 };
+      var shown = entries.filter(function (e) { return filter === "all" || e.d.tier === filter; }).sort(function (a, b) {
+        return rank[a.d.tier] - rank[b.d.tier] || (a.d.av1 - b.d.av1) || ((a.d.seeds === 0) - (b.d.seeds === 0)) || a.order - b.order;
+      });
+      U.clear(list);
+      shown.forEach(function (e) { list.appendChild(row(e)); });
+      if (done && !entries.length) list.appendChild(el("div.empty", { text: hidden ? "None of the streams found can play on the TV."
+        : "No streams found. Install stream addons (for example Torrentio) from stremio.com on your phone or computer — they sync to the TV after you sign in." }));
+      if (App.top() !== s) return;
+      var again = keep && Nav.findSame(s.el, keep);
+      if (again) Nav.focus(again);
+      else if (!keep || !s.el.contains(keep) || !keep.parentNode) App.refocus(s.initialFocus());
+    }
+
+    function row(e) {
+      var d = e.d, st = e.st;
+      var tags = d.tags.map(function (b) {
+        return el("span.badge" + (b[1] ? "." + b[1] : ""), {}, [b[2] ? Icons.svg(b[2]) : null, el("span", { text: b[0] })]);
+      });
+      if (e.key === lastKey) tags.unshift(el("span.badge.accent", { text: "Last played" }));
+      var side = [];
+      if (d.seeds !== null) side.push(el("span.sstat" + (d.seeds <= 2 ? ".low" : ""), {}, [Icons.svg("peers"), el("span", { text: String(d.seeds) })]));
+      if (d.size) side.push(el("span.sstat", {}, [Icons.svg("download"), el("span", { text: d.size })]));
+      var r = el("div.stream.focusable", { "data-key": "st:" + e.key }, [
+        el("div.squal", {}, [el("div.sq", { text: d.quality }), d.hdr ? el("div.shdr", { text: d.hdr }) : null]),
+        el("div.sbody", {}, [
+          el("div.stitle", { text: d.title }),
+          d.pack ? el("div.spack", { text: d.pack }) : null,
+          el("div.badges", {}, tags)
+        ]),
+        el("div.sside", {}, [el("div.sstats", {}, side), el("div.ssrc", { text: d.source })])
+      ]);
+      r.onactivate = function () {
+        U.setLastStream(video.id, st);
+        lastKey = e.key;
+        Player.open({ meta: meta, video: video, stream: st });
+      };
+      return r;
+    }
+
+    setStatus();
+    Addons.streams(meta.type, video.id, function (addon, found) {
+      answered++;
+      found.forEach(function (st) {
+        var playable = !st.ytId && !st.externalUrl && (st.infoHash || st.url);
+        if (!playable) { hidden++; return; }
+        var key = streamKey(st);
+        if (seen[key]) return;   // the same file from two addons
+        seen[key] = true;
+        entries.push({ st: st, key: key, order: order++, d: describe(st, addon.manifest.name) });
+      });
+      setStatus();
+      render();
+    }).then(function () { done = true; setStatus(); render(); });
+
+    // Up from the top row goes to the selected filter, not the nearest chip.
+    s.key = function (code) {
+      var c = Nav.current();
+      if (code === KEY.UP && c && c.parentNode === list && c === list.querySelector(".stream")) {
+        var chip = filters.querySelector(".chip.active");
+        if (chip && !filters.classList.contains("hidden")) { Nav.focus(chip); return true; }
+      }
+      return false;
+    };
+    s.initialFocus = function () {
+      return (lastKey && list.querySelector("[data-key=\"st:" + lastKey.replace(/"/g, "\\\"") + "\"]")) || list.querySelector(".stream.focusable");
+    };
     s.streamsFor = video.id;
     return s;
   }

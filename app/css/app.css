@@ -158,23 +158,43 @@ input.focus { border-color: #fff; }
 .streams .head h1 { margin: 0; }
 .streams .sub { color: var(--soft); font-size: 1.4vw; margin-top: 0.5vw; }
 .streams .status { color: var(--muted); font-size: 1.1vw; margin-top: 0.5vw; }
-.streamlist { position: absolute; left: var(--edge); right: var(--edge); top: 14.4vw; bottom: 0; overflow: hidden; padding-bottom: 4.8vw; }
-.streamlist h2 { color: var(--muted); font-size: 1.1vw; text-transform: uppercase; letter-spacing: 0.12vw; margin: 1.6vw 0 0.8vw; }
-.streamlist h2:first-child { margin-top: 0.4vw; }
-.stream { display: flex; align-items: flex-start; padding: 1.1vw 1.4vw; border-radius: 0.8vw; background: rgba(24,27,34,0.88); margin-bottom: 0.6vw; }
-.stream.focus { background: #f4f4f6; color: #0d0f14; }
-.stream.disabled { opacity: 0.45; }
 .btn.waiting { opacity: 0.6; }
-.stream .sname { flex: 0 0 auto; width: 13vw; font-weight: 700; font-size: 1.3vw; line-height: 1.3; white-space: pre-line; margin-right: 1.6vw; }
-.stream .sbody { flex: 1; min-width: 0; }
-.stream .stitle { white-space: pre-line; font-size: 1.2vw; line-height: 1.4; max-height: 5vw; overflow: hidden; color: var(--soft);
-  word-wrap: break-word; }
-.stream.focus .stitle { color: #2b2f39; }
-.stream .badges { display: flex; flex-wrap: wrap; align-items: center; margin-top: 0.6vw; }
+.sbody2 { position: absolute; left: var(--edge); right: var(--edge); top: 11.6vw; bottom: 0; display: flex; flex-direction: column; }
+.sfilters { flex: 0 0 auto; padding: 0 0 0.8vw; }
+.streams .head { top: 2.4vw; }
+.streams .hposter { width: 5.2vw; height: 7.8vw; }
+.streams .head h1 { font-size: 2.6vw; }
+.streams .sub { font-size: 1.25vw; }
+.chip .ccount { margin-left: 0.6vw; opacity: 0.6; font-weight: 500; }
+.streamlist { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 0.6vw 0 4.8vw;
+  -webkit-mask-image: linear-gradient(transparent, #000 1.4vw); }
+.stream { display: flex; align-items: center; min-height: 4vw; padding: 0.75vw 1.4vw; border-radius: 0.8vw;
+  background: rgba(24,27,34,0.88); margin-bottom: 0.5vw; }
+.stream.focus { background: #f4f4f6; color: #0d0f14; }
+.squal { flex: 0 0 auto; width: 7.6vw; }
+.squal .sq { font-size: 1.6vw; font-weight: 800; line-height: 1.1; }
+.squal .shdr { font-size: 0.95vw; font-weight: 700; color: #cbbcff; margin-top: 0.25vw; white-space: nowrap; }
+.stream.focus .shdr { color: var(--accent-deep); }
+.stream .sbody { flex: 1 1 auto; min-width: 0; margin-right: 2vw; }
+.stream .stitle { font-size: 1.25vw; font-weight: 600; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stream.focus .stitle { white-space: normal; word-wrap: break-word; }
+.stream .spack { display: none; font-size: 1vw; line-height: 1.35; color: #4a4d56; margin-top: 0.15vw; word-wrap: break-word; }
+.stream.focus .spack { display: block; }
+.stream .badges { display: flex; flex-wrap: wrap; align-items: center; margin-top: 0.4vw; }
+.stream .badges .badge { margin-bottom: 0; height: 1.6vw; font-size: 0.92vw; padding: 0 0.6vw; }
 .stream.focus .badge { background: rgba(13,15,20,0.08); color: #0d0f14; }
 .stream.focus .badge.warn { background: #ffd36b; color: #3a2a00; }
-.stream.focus .badge.info { background: var(--accent-deep); color: #fff; }
-.stream.focus .badge.muted { background: transparent; color: #4a4d56; }
+.stream.focus .badge.info, .stream.focus .badge.accent { background: var(--accent-deep); color: #fff; }
+.sside { flex: 0 0 auto; min-width: 12vw; text-align: right; }
+.sstats { display: flex; justify-content: flex-end; }
+.sstat { display: inline-flex; align-items: center; font-size: 1.15vw; font-weight: 600; color: var(--soft); margin-left: 1.3vw; }
+.sstat .icon { width: 1.15vw; height: 1.15vw; margin-right: 0.4vw; }
+.sstat.low { color: #ffd36b; }
+.ssrc { font-size: 0.95vw; color: var(--muted); margin-top: 0.4vw; max-width: 18vw; margin-left: auto;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stream.focus .sstat { color: #0d0f14; }
+.stream.focus .sstat.low { color: #9a6b00; }
+.stream.focus .ssrc { color: #4a4d56; }
 
 /* ---- settings ---- */
 .settings { width: 62vw; }
