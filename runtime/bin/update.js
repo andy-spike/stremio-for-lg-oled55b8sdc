@@ -19,6 +19,18 @@ const path = require("path");
 const https = require("https");
 const { spawn, spawnSync } = require("child_process");
 const { patch } = require("./patch-server.js");
+const crypto = require("crypto");
+
+// Only approve exact patched bundles after exercising playback on the TV.
+const APPROVED = {
+  "4.22.5": "32cd08023113bfd78585c1b19fd2683f034772836275573ee19c1bf8670a94f0"
+};
+function verifyCandidate(version, source) {
+  if (!APPROVED[version]) throw new Error("server " + version + " has not been verified with this TV app");
+  if (crypto.createHash("sha256").update(source).digest("hex") !== APPROVED[version]) {
+    throw new Error("server " + version + " differs from the verified bundle");
+  }
+}
 
 const ROOT = "/media/developer/stremio";
 const UPD = ROOT + "/updates";
@@ -107,6 +119,7 @@ async function latestServer(current) {
 async function updateServer(force) {
   const task = "server";
   try {
+    if (read(PENDING)) throw new Error("finish testing or roll back the pending server before updating again");
     const current = serverVersion(SERVER);
     if (!current) throw new Error("can't read the installed server's version");
     progress({ task, state: "checking", current });
@@ -116,17 +129,25 @@ async function updateServer(force) {
     if (cmp(latest, current) <= 0) { progress({ task, state: "uptodate", current, latest }); return; }
     if (!force && skipped().indexOf(latest) >= 0) { progress({ task, state: "skipped", current, latest }); return; }
 
+    if (!APPROVED[latest]) throw new Error("server " + latest + " has not been verified with this TV app; keeping " + current);
     progress({ task, state: "downloading", current, version: latest });
     const src = (await get(SERVER_URL(latest))).toString("utf8");
     if (versionOf(src) !== latest) throw new Error("downloaded server.js isn't version " + latest);
     const tmp = UPD + "/server.new.js";
-    fs.writeFileSync(tmp, patch(src));   // throws if Stremio changed the patched code
+    const patched = patch(src);
+    verifyCandidate(latest, patched);
+    fs.writeFileSync(tmp, patched);   // throws if Stremio changed the patched code
 
     progress({ task, state: "verifying", current, version: latest });
     // Node runs through its own loader here (see bin/stremio-service).
     const check = spawnSync(ROOT + "/lib/ld-linux-armhf.so.3", ["--library-path", ROOT + "/lib", ROOT + "/bin/node", "--check", tmp], { encoding: "utf8" });
     if (check.status !== 0) { fs.unlinkSync(tmp); throw new Error("server.js " + latest + " fails to parse: " + (check.stderr || "").slice(0, 300)); }
 
+    // Keep versioned recovery copies as well as the one-button rollback.
+    const archive = UPD + "/archive";
+    fs.mkdirSync(archive, { recursive: true });
+    fs.copyFileSync(SERVER, archive + "/server-" + current + ".js");
+    if (fs.existsSync(PREV)) fs.copyFileSync(PREV, archive + "/server-" + serverVersion(PREV) + ".js");
     fs.copyFileSync(SERVER, PREV);
     fs.chmodSync(tmp, 0o644);
     fs.renameSync(tmp, SERVER);
@@ -210,9 +231,14 @@ function status() {
   }));
 }
 
-const [cmd, arg] = process.argv.slice(2);
-if (cmd === "status") status();
-else if (cmd === "server") updateServer(arg === "force");
-else if (cmd === "switch-server") switchServer();
-else if (cmd === "app") updateApp(arg);
-else { console.error("usage: update.js status|server [force]|switch-server|app <version>"); process.exitCode = 2; }
+module.exports = { verifyCandidate, updateServer, switchServer };
+
+if (require.main === module) {
+  const [cmd, arg] = process.argv.slice(2);
+  if (cmd === "status") status();
+  else if (cmd === "server") updateServer(arg === "force");
+  else if (cmd === "switch-server") switchServer();
+  else if (cmd === "app") updateApp(arg);
+  else { console.error("usage: update.js status|server [force]|switch-server|app <version>"); process.exitCode = 2; }
+
+}

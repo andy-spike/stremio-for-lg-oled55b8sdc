@@ -60,16 +60,38 @@ updates) the app runs `bin/stremio-update server` on the TV, in the background:
 1. Find the newest server. Stremio publishes each version at
    `dl.strem.io/server/v<version>/desktop/server.js` with no "latest"
    pointer, so the updater tries the next version numbers.
-2. Download it, apply `patch-server.js`, and syntax-check the result. If the
-   patch doesn't fit (Stremio changed that code), nothing changes.
-3. Put it in place, keeping the old one as `updates/server.prev.js`, and mark
+2. Require an explicitly verified version in `update.js`, download it, apply
+   `patch-server.js`, verify the exact patched SHA-256, and syntax-check it.
+   Unknown versions or changed bundles leave the current server installed, even
+   for a forced update. Approvals require tests on this TV before editing the list.
+3. Archive the installed and previous servers under `updates/archive/`, then
+   put it in place, keeping the old one as `updates/server.prev.js`, and mark
    it `updates/pending`. The app restarts the server unless something is playing.
 4. On its next start, `stremio-service` waits for the new server to answer
    on 127.0.0.1 only. If it doesn't, or if it listens on the network, the
    previous server comes back and that version is skipped from then on.
 
 Settings > Updates > "Switch to server X" swaps the current and the previous
-server (going back skips the newer one until you check for updates again).
+server (going back skips the newer one until an explicit forced update).
+A pending update blocks further installations so its recovery copy is retained.
+Runtime deployments also retain `updates/` and a dated full runtime backup.
+Use `tools/install-runtime.sh --scripts` for changes to our four runtime scripts;
+it backs those up without replacing the installed server or its binaries.
+
+The startup check is a startup/network-binding check, not proof that every
+addon or media format works. Before approving a bundle, test torrent discovery,
+metadata, file selection, byte delivery and ffprobe using a controlled seeded
+video on the TV. Also test addon metadata independently: browsing details uses
+HTTPS addon requests and does not go through the streaming server.
+
+On 2026-11-01, 4.22.5 passed controlled tracker/peer discovery, metadata, file
+selection, exact-byte H.264/AAC delivery, ffprobe and HLS master-playlist
+generation on the B8. Attack on Titan
+(`tt2560140`) metadata timed out with normal DNS, but returned 85,818 bytes
+when the hostname was resolved explicitly. DNS requests timed out independently
+of the streaming server; this was not evidence of a server API regression.
+Full playback on the TV screen and public torrent availability remain separate
+checks; a controlled transfer cannot guarantee those.
 
 **App: when asked.** The app reads this repo's GitHub releases. When one is
 newer, it says so; "Install app X" downloads its `.ipk` on the TV and installs

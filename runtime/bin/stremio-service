@@ -71,7 +71,7 @@ exposed() {
 answers() {
   i=0
   while [ $i -lt 60 ]; do
-    if curl -s -o /dev/null --max-time 2 http://127.0.0.1:11470/settings; then
+    if curl -fsS -o /dev/null --max-time 2 http://127.0.0.1:11470/settings; then
       exposed && return 1
       return 0
     fi
@@ -114,7 +114,8 @@ case "$1" in
           echo "server $(cat "$UPD/pending") did not start; going back" >> "$UPD/log"
           stop_server
           cat "$UPD/pending" >> "$UPD/skip"
-          mv "$UPD/server.prev.js" "$ROOT/server.js"
+          cp "$ROOT/server.js" "$UPD/server.failed.js"
+          cp "$UPD/server.prev.js" "$ROOT/server.js"
           rm -f "$UPD/pending"
           : > "$LOG"
           start_server
