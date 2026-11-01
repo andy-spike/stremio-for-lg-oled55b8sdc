@@ -5,7 +5,7 @@ address conflict: the TV was manually assigned **192.168.0.9**, and another
 MAC (**8E:D4:73:B3:37:6E**) answered an ARP duplicate-address probe for that IP.
 This also interrupted direct TCP/HTTPS connections, independently of DNS.
 
-The TV now uses DHCP and received **192.168.0.10**. A duplicate-address probe
+The TV now uses DHCP and received **192.168.0.10** (later 192.168.0.5; see the end of this file). A duplicate-address probe
 for the new IP received no replies. The change was protected by a two-minute
 automatic rollback, cancelled after reconnecting with the pinned SSH key and
 successfully fetching metadata. The original manual configuration and a
@@ -139,3 +139,33 @@ The foreground-app check confirms that Stremio is open on the TV. Actual
 rendered title details and on-screen playback still require a screen check:
 both available capture API probes were rejected by this firmware. Network
 reconnection without reboot remains a separate, untested scenario.
+
+## Slow Wi-Fi after power-on (2026-11-01, fixed on the router)
+
+Symptom: right after turning the TV on, opening a title showed "No addon has
+details for this title." Cause: no network yet, not DNS or the server.
+
+The kernel log (`dmesg`) showed Wi-Fi joining at ~24 s, then the router
+de-authenticating the TV 3 s later with reason 15 ("4-way handshake
+timeout"). ConnMan rescanned with growing gaps (30, 38, 54, 86 s) and only
+reconnected at 87 s. DHCP itself was fast: the router answered a test
+request in 0.4 s.
+
+The router (ZTE F680, Claro/ETB firmware) used the mixed **WPA/WPA2-PSK
+TKIP/AES** mode, giving the TV a TKIP group key. Setting the network's
+**Encryption Type** to **WPA2-PSK-AES** (one field on this firmware) fixed
+it: after two reboots the TV joined on the first try at ~23 s and was online
+25–29 s after boot, with CCMP for both pairwise and group ciphers. WPS is
+still advertised; turning it off is optional.
+
+The app now also retries details and streams while the network is down
+(1.3.8), so the remaining ~25 s window after power-on only shows "Can't
+reach the internet yet. Trying again…".
+
+The router then gave the TV a new DHCP address, **192.168.0.5**. `bin/tv`
+finds the TV by MAC; the `lg-tv` SSH alias was updated (backup next to
+`~/.ssh/config`). A boot-time Wi-Fi watchdog was tried and dropped: the
+router fix made it unnecessary. When testing Wi-Fi on the TV, don't run
+`connmanctl disconnect` from a script: it ended the test script before its
+own recovery step ran, and the TV stayed offline until reconnected from the
+TV's Settings.
