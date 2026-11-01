@@ -48,7 +48,7 @@ var Engine = (function () {
           (function wait() {
             alive().then(function (up) {
               if (up) resolve(true);
-              else if (++tries > 40) reject(new Error("The streaming server did not start"));
+              else if (++tries > 40) reject(new Error(tr("The streaming server did not start")));
               else setTimeout(wait, 500);
             });
           })();
@@ -68,7 +68,7 @@ var Engine = (function () {
     if (stream.infoHash) return createTorrent(stream.infoHash.toLowerCase(), stream.fileIdx, trackerSources(stream), seriesInfo);
     if (stream.url && stream.url.indexOf("magnet:") === 0) {
       var m = /xt=urn:btih:([a-zA-Z0-9]+)/.exec(stream.url);
-      if (!m) return Promise.reject(new Error("Unreadable magnet link"));
+      if (!m) return Promise.reject(new Error(tr("Unreadable magnet link")));
       var trackers = (stream.url.match(/tr=([^&]+)/g) || []).map(function (t) { return "tracker:" + decodeURIComponent(t.slice(3)); });
       return createTorrent(m[1].toLowerCase(), null, trackers, seriesInfo);
     }
@@ -77,7 +77,7 @@ var Engine = (function () {
       var url = hints.proxyHeaders ? proxyUrl(stream.url, hints.proxyHeaders.request || {}, hints.proxyHeaders.response || {}) : stream.url;
       return Promise.resolve({ url: url, filename: hints.filename || null });
     }
-    return Promise.reject(new Error("This stream type isn't supported on the TV"));
+    return Promise.reject(new Error(tr("This stream type isn't supported on the TV")));
   }
 
   // Same request Stremio's own players send (stremio-video createTorrent.js).

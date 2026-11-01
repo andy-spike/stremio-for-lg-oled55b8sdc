@@ -34,7 +34,10 @@
     }
   </script>
   <script src="../app/lib/hls.min.js"></script>
+  <!-- ?lang=es|fr|de|pt previews the interface in that language -->
+  <script>var langParam = /[?&]lang=(\w+)/.exec(location.search); if (langParam) localStorage.setItem("uiLang", JSON.stringify(langParam[1]));</script>
   <script src="../app/js/util.js"></script>
+  <script src="../app/js/i18n.js"></script>
   <script src="../app/js/luna.js"></script>
   <script src="../app/js/account.js"></script>
   <script src="../app/js/addons.js"></script>

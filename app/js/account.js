@@ -47,12 +47,12 @@ var Account = (function () {
     var cancelled = false, timer = null;
     return U.request(LINK + "create?type=Create", { timeout: 15000 }).then(function (r) {
       var c = r.result || r;
-      if (!c || !c.code) throw new Error("Could not get a sign-in code");
+      if (!c || !c.code) throw new Error(tr("Could not get a sign-in code"));
       var wait = new Promise(function (resolve, reject) {
         var started = Date.now();
         function poll() {
           if (cancelled) return;
-          if (Date.now() - started > 10 * 60 * 1000) { reject(new Error("The sign-in code expired")); return; }
+          if (Date.now() - started > 10 * 60 * 1000) { reject(new Error(tr("The sign-in code expired"))); return; }
           U.request(LINK + "read?type=Read&code=" + encodeURIComponent(c.code), { timeout: 10000 }).then(function (r2) {
             var key = r2 && r2.result && (r2.result.authKey || r2.result.auth_key);
             if (key && !cancelled) setAuth(key).then(resolve, reject);

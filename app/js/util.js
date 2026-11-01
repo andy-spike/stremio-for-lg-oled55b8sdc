@@ -137,18 +137,20 @@ var U = (function () {
     hrv: "Croatian", scc: "Serbian", srp: "Serbian", slv: "Slovenian", slo: "Slovak", slk: "Slovak", cat: "Catalan",
     est: "Estonian", lav: "Latvian", lit: "Lithuanian", per: "Persian", fas: "Persian", und: "Unknown"
   };
-  function langName(code) {
+  function englishName(code) {
     if (!code) return "";
     return LANGS[String(code).toLowerCase()] || code;
   }
+  // The name to show, in the interface language.
+  function langName(code) { var n = englishName(code); return n && window.tr ? tr(n) : n; }
   // Same language under different codes ("eng" / "en" / "English")?
   function sameLang(a, b) {
     if (!a || !b) return false;
-    return langName(a).toLowerCase() === langName(b).toLowerCase();
+    return englishName(a).toLowerCase() === englishName(b).toLowerCase();
   }
 
   // "Spanish (Latin America)" -> "spanish": regional variants count as the language.
-  function langBase(code) { return langName(code).replace(/ \(.*\)$/, "").toLowerCase(); }
+  function langBase(code) { return englishName(code).replace(/ \(.*\)$/, "").toLowerCase(); }
 
   // Languages offered in settings, one entry per language: the common ones
   // first, then the rest alphabetically.
@@ -162,8 +164,9 @@ var U = (function () {
       seen[n] = true;
       rest.push([c, n]);
     });
-    rest.sort(function (a, b) { return a[1] < b[1] ? -1 : 1; });
-    return COMMON.map(function (c) { return [c, LANGS[c]]; }).concat(rest);
+    rest = rest.map(function (r) { return [r[0], langName(r[0])]; });
+    rest.sort(function (a, b) { return a[1].localeCompare(b[1]); });
+    return COMMON.map(function (c) { return [c, langName(c)]; }).concat(rest);
   }
 
   // Subtitle languages the player lists (Settings > Subtitle languages).

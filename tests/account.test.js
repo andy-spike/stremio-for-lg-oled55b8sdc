@@ -14,7 +14,7 @@ function sandbox() {
   ctx.window = ctx;
   vm.createContext(ctx);
   ctx.localStorage.setItem("auth", JSON.stringify({ key: "k1", user: { email: "a@b" } }));
-  for (const f of ["util.js", "account.js"]) vm.runInContext(fs.readFileSync(path.join(__dirname, "../app/js", f), "utf8"), ctx, { filename: f });
+  for (const f of ["util.js", "i18n.js", "account.js"]) vm.runInContext(fs.readFileSync(path.join(__dirname, "../app/js", f), "utf8"), ctx, { filename: f });
   // Fake API: calls wait until released, so tests control the interleaving.
   const calls = [];
   ctx.U.request = (url, opts) => new Promise(resolve => {

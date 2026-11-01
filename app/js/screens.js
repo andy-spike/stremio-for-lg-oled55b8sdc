@@ -23,17 +23,17 @@ var Screens = (function () {
 
   function minutesLeft(st) {
     var m = Math.round((st.duration - st.timeOffset) / 60000);
-    return m >= 60 ? Math.floor(m / 60) + " h " + (m % 60) + " min left" : Math.max(1, m) + " min left";
+    return m >= 60 ? tr("{h} h {m} min left", { h: Math.floor(m / 60), m: m % 60 }) : tr("{m} min left", { m: Math.max(1, m) });
   }
 
   function spinner(text) { return el("div.loading", {}, [el("div.spinner"), el("span", { text: text || "" })]); }
 
-  function typeLabel(type) { return type === "movie" ? "Movies" : type === "series" ? "Series" : type === "channel" ? "Channels" : type === "tv" ? "TV" : type; }
+  function typeLabel(type) { return type === "movie" ? tr("Movies") : type === "series" ? tr("Series") : type === "channel" ? tr("Channels") : type === "tv" ? "TV" : type; }
 
   // "tt123:2:5" -> "S2 E5"
   function episodeLabel(videoId) {
     var m = /:(\d+):(\d+)$/.exec(videoId || "");
-    return m ? "S" + m[1] + " E" + m[2] : "";
+    return m ? tr("S{s} E{e}", { s: m[1], e: m[2] }) : "";
   }
 
   function posterClass(shape) { return shape === "landscape" ? "landscape" : shape === "square" ? "square" : "poster"; }
@@ -61,7 +61,7 @@ var Screens = (function () {
   // Top bar with the main sections.
   function topBar(active) {
     var tabs = [["home", "Home"], ["search", "Search"], ["library", "Library"], ["settings", "Settings"]].map(function (t) {
-      var b = el("div.tab.focusable" + (t[0] === active ? ".active" : ""), {}, [Icons.svg(t[0]), el("span", { text: t[1] })]);
+      var b = el("div.tab.focusable" + (t[0] === active ? ".active" : ""), {}, [Icons.svg(t[0]), el("span", { text: tr(t[1]) })]);
       b.onactivate = function () {
         if (t[0] === active) return;
         var make = { home: null, search: search, library: library, settings: settings }[t[0]];
@@ -92,36 +92,36 @@ var Screens = (function () {
   // ---------- sign-in ----------
 
   function login() {
-    var codeBox = el("div.linkbox", {}, spinner("Getting a sign-in code…"));
+    var codeBox = el("div.linkbox", {}, spinner(tr("Getting a sign-in code…")));
     var emailForm = el("div.emailform.hidden");
-    var email = el("input.focusable", { type: "email", placeholder: "Email" });
-    var pass = el("input.focusable", { type: "password", placeholder: "Password" });
+    var email = el("input.focusable", { type: "email", placeholder: tr("Email") });
+    var pass = el("input.focusable", { type: "password", placeholder: tr("Password") });
     var err = el("div.error");
     var link = null;
     var s = { el: screen("login", [
       brand(),
-      el("h1", { text: "Sign in to your Stremio account" }),
+      el("h1", { text: tr("Sign in to your Stremio account") }),
       el("div.columns", {}, [codeBox, el("div.side", {}, [
-        button("Sign in with email instead", function () {
+        button(tr("Sign in with email instead"), function () {
           emailForm.classList.remove("hidden"); Nav.focus(email);
         }, "", "mail"),
         emailForm,
-        button("Continue without an account", function () { U.save("guest", true); enter(); }, "subtle")
+        button(tr("Continue without an account"), function () { U.save("guest", true); enter(); }, "subtle")
       ])])
     ]) };
 
     emailForm.appendChild(email);
     emailForm.appendChild(pass);
     emailForm.appendChild(err);
-    var submit = button("Sign in", doLogin, "primary");
+    var submit = button(tr("Sign in"), doLogin, "primary");
     var submitLabel = submit.lastChild;
     emailForm.appendChild(submit);
     function doLogin() {
       err.textContent = "";
-      submitLabel.textContent = "Signing in…";
+      submitLabel.textContent = tr("Signing in…");
       Account.login(email.value.trim(), pass.value).then(function (u) {
-        App.toast("Signed in as " + u.email); enter();
-      }, function (e) { submitLabel.textContent = "Sign in"; err.textContent = e.message || "Sign-in failed"; });
+        App.toast(tr("Signed in as {email}", { email: u.email })); enter();
+      }, function (e) { submitLabel.textContent = tr("Sign in"); err.textContent = e.message || tr("Sign-in failed"); });
     }
     [email, pass].forEach(function (input) {
       input.addEventListener("keydown", function (e) {
@@ -135,15 +135,15 @@ var Screens = (function () {
         U.clear(codeBox);
         codeBox.appendChild(el("img.qr", { src: l.qrcode }));
         codeBox.appendChild(el("div.how", {}, [
-          el("p", { text: "Point your phone’s camera at the code." }),
-          el("p", { text: "Or open this page and type the code below:" }),
+          el("p", { text: tr("Point your phone’s camera at the code.") }),
+          el("p", { text: tr("Or open this page and type the code below:") }),
           el("p.url", { text: "link.stremio.com" })]));
         codeBox.appendChild(el("div.code", { text: l.code }));
-        l.wait.then(function (u) { App.toast("Signed in as " + u.email); enter(); },
-          function (e) { U.clear(codeBox).appendChild(el("div.error", { text: e.message })); codeBox.appendChild(button("Get a new code", startLink, "", "retry")); App.refocus(); });
+        l.wait.then(function (u) { App.toast(tr("Signed in as {email}", { email: u.email })); enter(); },
+          function (e) { U.clear(codeBox).appendChild(el("div.error", { text: e.message })); codeBox.appendChild(button(tr("Get a new code"), startLink, "", "retry")); App.refocus(); });
       }, function (e) {
-        U.clear(codeBox).appendChild(el("div.error", { text: "Couldn't reach Stremio: " + e.message }));
-        codeBox.appendChild(button("Try again", startLink, "", "retry"));
+        U.clear(codeBox).appendChild(el("div.error", { text: tr("Couldn't reach Stremio: {msg}", { msg: e.message }) }));
+        codeBox.appendChild(button(tr("Try again"), startLink, "", "retry"));
         App.refocus();
       });
     }
@@ -154,13 +154,13 @@ var Screens = (function () {
 
   // Load addons and the library, then show Home.
   function enter() {
-    var s = { el: screen("splash", [brand(), spinner("Loading your addons…")]) };
+    var s = { el: screen("splash", [brand(), spinner(tr("Loading your addons…"))]) };
     App.reset(s);
     Account.sync().catch(function () {}).then(function () { return Addons.load(); }).then(function () {
       App.reset(home());
     }, function (e) {
-      U.clear(s.el).appendChild(el("div.error", { text: "Couldn't load addons: " + e.message }));
-      s.el.appendChild(button("Try again", enter, "", "retry"));
+      U.clear(s.el).appendChild(el("div.error", { text: tr("Couldn't load addons: {msg}", { msg: e.message }) }));
+      s.el.appendChild(button(tr("Try again"), enter, "", "retry"));
       App.refocus();
     });
   }
@@ -177,24 +177,24 @@ var Screens = (function () {
       U.clear(cwSlot);
       var items = Account.continueWatching();
       if (!items.length) return;
-      cwSlot.appendChild(row("Continue Watching", items.slice(0, 30).map(function (it) {
+      cwSlot.appendChild(row(tr("Continue Watching"), items.slice(0, 30).map(function (it) {
         var st = it.state;
         var upNext = st.timeOffset <= 1;   // finished; the next episode is queued at offset 1
         var left = !upNext && st.duration > st.timeOffset + 30000 ? minutesLeft(st) : "";
         var ep = it.type === "series" ? episodeLabel(st.video_id) : "";
         return card(it, { progress: !upNext && st.duration ? st.timeOffset / st.duration : 0,
-          label: [ep, upNext ? "Up next" : left].filter(Boolean).join(" · ") });
+          label: [ep, upNext ? tr("Up next") : left].filter(Boolean).join(" · ") });
       })));
     }
     buildContinue();
 
     var entries = Addons.boardCatalogs();
     var rows = entries.map(function (entry) {
-      var r = row((entry.catalog.name || entry.addon.manifest.name) + " — " + typeLabel(entry.catalog.type), [el("div.card.placeholder.poster")]);
+      var r = row((entry.catalog.name ? tr(entry.catalog.name) : entry.addon.manifest.name) + " — " + typeLabel(entry.catalog.type), [el("div.card.placeholder.poster")]);
       page.appendChild(r);
       return { entry: entry, el: r };
     });
-    if (!entries.length) page.appendChild(el("div.empty", { text: "None of your addons provide catalogs." }));
+    if (!entries.length) page.appendChild(el("div.empty", { text: tr("None of your addons provide catalogs.") }));
     limited(rows.map(function (r) {
       return function () {
         return Addons.catalog(r.entry).then(function (metas) {
@@ -221,7 +221,7 @@ var Screens = (function () {
   // ---------- search ----------
 
   function search() {
-    var input = el("input.focusable.search", { type: "text", placeholder: "Search movies and series" });
+    var input = el("input.focusable.search", { type: "text", placeholder: tr("Search movies and series") });
     var results = el("div.page.vscroll.below-search");
     var s = { el: screen("search", [topBar("search"), el("div.searchbar", {}, [Icons.svg("search"), input]), results]) };
     var timer = null, seq = 0;
@@ -229,7 +229,7 @@ var Screens = (function () {
       var q = input.value.trim();
       var mine = ++seq;
       if (!q) { U.clear(results); return; }
-      U.clear(results).appendChild(spinner("Searching…"));
+      U.clear(results).appendChild(spinner(tr("Searching…")));
       var cats = Addons.searchCatalogs();
       var found = 0, failed = 0;
       U.settle(cats.map(function (entry) {
@@ -241,8 +241,8 @@ var Screens = (function () {
       })).then(function () {
         if (mine !== seq || found) return;
         U.clear(results).appendChild(el("div.empty", { text: cats.length && failed === cats.length
-          ? "Couldn't reach your search addons. Check the connection and try again."
-          : "Nothing found for “" + q + "”. Try the original title, or fewer words." }));
+          ? tr("Couldn't reach your search addons. Check the connection and try again.")
+          : tr("Nothing found for “{q}”. Try the original title, or fewer words.", { q: q }) }));
       });
     }
     input.addEventListener("keydown", function (e) {
@@ -260,7 +260,7 @@ var Screens = (function () {
     var grid = el("div.grid");
     var filter = "all";
     var filters = el("div.filters", {}, [["all", "All"], ["movie", "Movies"], ["series", "Series"]].map(function (f) {
-      var b = el("div.chip.focusable" + (f[0] === filter ? ".active" : ""), { text: f[1], "data-key": "filter:" + f[0] });
+      var b = el("div.chip.focusable" + (f[0] === filter ? ".active" : ""), { text: tr(f[1]), "data-key": "filter:" + f[0] });
       b.onactivate = function () {
         filter = f[0];
         U.$all(".chip", filters).forEach(function (c) { c.classList.toggle("active", c === b); });
@@ -272,8 +272,8 @@ var Screens = (function () {
     function build() {
       U.clear(grid);
       var items = Account.libraryItems().filter(function (it) { return filter === "all" || it.type === filter; });
-      if (!items.length) grid.appendChild(el("div.empty", { text: !Account.signedIn() ? "Sign in to see your library."
-        : filter === "all" ? "Your library is empty. Open a movie or series and choose “Add to library”." : "Nothing here yet." }));
+      if (!items.length) grid.appendChild(el("div.empty", { text: !Account.signedIn() ? tr("Sign in to see your library.")
+        : filter === "all" ? tr("Your library is empty. Open a movie or series and choose “Add to library”.") : tr("Nothing here yet.") }));
       items.forEach(function (it) { grid.appendChild(card(it)); });
     }
     build();
@@ -321,12 +321,12 @@ var Screens = (function () {
       var actions = el("div.actions");
       var resume = lib && lib.state && lib.state.video_id && lib.state.timeOffset > 0;
       var target = resume ? videoFor(lib.state.video_id) : isSeries ? (episodes.filter(function (v) { return v.season > 0; })[0] || episodes[0]) : videoFor(null);
-      var label = resume ? "Resume" : isSeries ? "Watch" : "Play";
+      var label = tr(resume ? "Resume" : isSeries ? "Watch" : "Play");
       if (isSeries && target) label += " " + episodeLabel(target.id || ("x:" + target.season + ":" + target.episode));
       // A series' catalog preview has no episode list: wait for the details
       // rather than asking addons for streams of the show itself.
       var waiting = type === "series" && !full;
-      if (waiting) label = "Loading episodes…";
+      if (waiting) label = tr("Loading episodes…");
       var play = button(label, function () {
         if (waiting) return;
         var saved = resume ? U.lastStream(target.id) : null;
@@ -339,16 +339,16 @@ var Screens = (function () {
       actions.appendChild(play);
       if (Account.signedIn()) {
         var inLib = Account.inLibrary(meta.id);
-        var libBtn = button(inLib ? "In library" : "Add to library", function () {
+        var libBtn = button(tr(inLib ? "In library" : "Add to library"), function () {
           var on = !Account.inLibrary(meta.id);
           Account.setInLibrary(meta, on);
-          libBtn.setLabel(on ? "In library" : "Add to library", on ? "check" : "plus");
+          libBtn.setLabel(tr(on ? "In library" : "Add to library"), on ? "check" : "plus");
         }, "", inLib ? "check" : "plus");
         libBtn.setAttribute("data-key", "lib");
         actions.appendChild(libBtn);
       }
       if (resume && !isSeries) {
-        var other = button("Other streams", function () { App.push(streams(meta, target)); }, "", "sources");
+        var other = button(tr("Other streams"), function () { App.push(streams(meta, target)); }, "", "sources");
         other.setAttribute("data-key", "other");
         actions.appendChild(other);
       }
@@ -372,7 +372,7 @@ var Screens = (function () {
       side.appendChild(tabs);
       side.appendChild(list);
       seasons.forEach(function (n) {
-        var t = el("div.chip.focusable" + (n === current ? ".active" : ""), { text: n === 0 ? "Specials" : "Season " + n, "data-key": "season:" + n });
+        var t = el("div.chip.focusable" + (n === current ? ".active" : ""), { text: n === 0 ? tr("Specials") : tr("Season {n}", { n: n }), "data-key": "season:" + n });
         t.onactivate = function () { current = shownSeason = n; U.$all(".chip", tabs).forEach(function (c) { c.classList.toggle("active", c === t); }); fill(); };
         tabs.appendChild(t);
       });
@@ -386,9 +386,9 @@ var Screens = (function () {
             el("div.thumb", { style: v.thumbnail ? { backgroundImage: "url(\"" + v.thumbnail + "\")" } : {} },
               playing && lib.state.duration ? el("div.progress", {}, el("div", { style: { width: Math.min(100, lib.state.timeOffset / lib.state.duration * 100) + "%" } })) : null),
             el("div.text", {}, [
-              el("div.title", { text: "E" + v.episode + "  ·  " + (v.title || v.name || "Episode " + v.episode) }),
-              el("div.meta", {}, [playing ? el("span.badge.accent", { text: lib.state.timeOffset > 1 && lib.state.duration ? minutesLeft(lib.state) : "Up next" }) : null,
-                el("span", { text: released ? (future ? "Coming " : "") + released.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "" })]),
+              el("div.title", { text: "E" + v.episode + "  ·  " + (v.title || v.name || tr("Episode {n}", { n: v.episode })) }),
+              el("div.meta", {}, [playing ? el("span.badge.accent", { text: lib.state.timeOffset > 1 && lib.state.duration ? minutesLeft(lib.state) : tr("Up next") }) : null,
+                el("span", { text: released ? (function (d) { return future ? tr("Coming {date}", { date: d }) : d; })(released.toLocaleDateString(I18n.locale(), { year: "numeric", month: "short", day: "numeric" })) : "" })]),
               v.overview || v.description ? el("div.overview", { text: v.overview || v.description }) : null
             ])
           ]);
@@ -399,10 +399,10 @@ var Screens = (function () {
       fill();
     }
 
-    if (meta) render(); else info.appendChild(spinner("Loading…"));
+    if (meta) render(); else info.appendChild(spinner(tr("Loading…")));
     Addons.meta(type, id).then(function (m) {
       if (!m) {
-        if (!meta) U.clear(info).appendChild(el("div.error", { text: "No addon has details for this title." }));
+        if (!meta) U.clear(info).appendChild(el("div.error", { text: tr("No addon has details for this title.") }));
         else { full = true; render(); if (App.top() === s) App.refocus(Nav.current()); }   // play from the preview
         return;
       }
@@ -445,13 +445,13 @@ var Screens = (function () {
     if (source) d.tags.push([source]);
     d.av1 = has(/\bav1\b/i);
     var video = d.av1 ? "AV1" : has(/x\.?265|h\.?\s?265|hevc/i) ? "HEVC" : has(/x\.?264|h\.?\s?264|\bavc\b/i) ? "H.264" : has(/xvid|divx/i) ? "XviD" : "";
-    if (video) d.tags.push([video + (d.av1 ? " · may not play" : ""), d.av1 ? "warn" : ""]);
+    if (video) d.tags.push([d.av1 ? tr("{v} · may not play", { v: video }) : video, d.av1 ? "warn" : ""]);
     var ch = /\b([257])[ .]1\b/.exec(t);
     ch = ch ? " " + ch[1] + ".1" : "";
     d.dts = has(/\bdts/i);
     var audio = d.dts ? "DTS" : has(/atmos/i) ? "Atmos" : has(/truehd/i) ? "TrueHD" : has(/\bddp|dd\+|e-?ac-?3/i) ? "Dolby Digital+"
       : has(/\bdd\b|\bac-?3\b|dd[25]\.?[01]/i) ? "Dolby Digital" : has(/\baac/i) ? "AAC" : "";
-    if (audio) d.tags.push([audio + ch + (d.dts ? " · converted" : ""), d.dts ? "info" : ""]);
+    if (audio) d.tags.push([d.dts ? tr("{a} · converted", { a: audio + ch }) : audio + ch, d.dts ? "info" : ""]);
     // Languages from flag emoji (the TV can't draw flags) and common words.
     var langs = [];
     var flags = text.match(/\uD83C[\uDDE6-\uDDFF]\uD83C[\uDDE6-\uDDFF]/g) || [];
@@ -462,7 +462,7 @@ var Screens = (function () {
     });
     if (has(/castellano|latino|español|spanish/i) && langs.indexOf("Spanish") < 0) langs.push("Spanish");
     if (has(/multi[ -]?(audio|lang)|dual[ -]?audio/i) && !langs.length) langs.push("Multi audio");
-    if (langs.length) d.tags.push([langs.join(" · "), "", "audio"]);
+    if (langs.length) d.tags.push([langs.map(function (l) { return tr(l); }).join(" · "), "", "audio"]);
     var seeds = /👤\s?(\d+)/.exec(text);
     d.seeds = seeds ? +seeds[1] : null;
     var size = /💾\s?(\d+(?:\.\d+)?)\s?(GB|MB)/i.exec(text) || /\b(\d+(?:\.\d+)?)\s?(GB|MB)\b/i.exec(text);
@@ -491,7 +491,7 @@ var Screens = (function () {
     var list = el("div.streamlist.vscroll");
     var status = el("div.status");
     var epName = video.title || video.name;
-    var label = video.season !== undefined ? "Season " + video.season + "  ·  Episode " + video.episode + (epName ? "  —  " + epName : "") : "";
+    var label = video.season !== undefined ? tr("Season {n}", { n: video.season }) + "  ·  " + tr("Episode {n}", { n: video.episode }) + (epName ? "  —  " + epName : "") : "";
     var filters = el("div.filters.sfilters");
     var head = el("div.head", {}, [el("div.htext", {}, [el("h1", { text: meta.name }), label ? el("div.sub", { text: label }) : null, status])]);
     if (meta.poster) head.insertBefore(el("div.hposter", { style: { backgroundImage: "url(\"" + meta.poster + "\")" } }), head.firstChild);
@@ -504,9 +504,9 @@ var Screens = (function () {
     function setStatus() {
       var n = entries.length;
       var parts = [];
-      if (!done) parts.push("Loading streams… " + answered + " of " + addonCount + " addons");
-      else parts.push(n + (n === 1 ? " stream" : " streams"));
-      if (hidden) parts.push(hidden + " not playable on the TV, hidden");
+      if (!done) parts.push(tr("Loading streams… {a} of {b} addons", { a: answered, b: addonCount }));
+      else parts.push(n === 1 ? tr("1 stream") : tr("{n} streams", { n: n }));
+      if (hidden) parts.push(tr("{n} not playable on the TV, hidden", { n: hidden }));
       status.textContent = addonCount || n ? parts.join("  ·  ") : "";
     }
 
@@ -517,7 +517,7 @@ var Screens = (function () {
       var counts = { all: entries.length };
       entries.forEach(function (e) { counts[e.d.tier] = (counts[e.d.tier] || 0) + 1; });
       if (filter !== "all" && !counts[filter]) filter = "all";
-      [["all", "All"]].concat(TIERS).forEach(function (f) {
+      [["all", tr("All")]].concat(TIERS).forEach(function (f) {
         if (!counts[f[0]] || (f[0] !== "all" && counts[f[0]] === entries.length)) return;
         var c = el("div.chip.focusable" + (filter === f[0] ? ".active" : ""), { "data-key": "sf:" + f[0] },
           [el("span", { text: f[1] }), el("span.ccount", { text: String(counts[f[0]]) })]);
@@ -532,8 +532,8 @@ var Screens = (function () {
       });
       U.clear(list);
       shown.forEach(function (e) { list.appendChild(row(e)); });
-      if (done && !entries.length) list.appendChild(el("div.empty", { text: hidden ? "None of the streams found can play on the TV."
-        : "No streams found. Install stream addons (for example Torrentio) from stremio.com on your phone or computer — they sync to the TV after you sign in." }));
+      if (done && !entries.length) list.appendChild(el("div.empty", { text: hidden ? tr("None of the streams found can play on the TV.")
+        : tr("No streams found. Install stream addons (for example Torrentio) from stremio.com on your phone or computer — they sync to the TV after you sign in.") }));
       if (App.top() !== s) return;
       var again = keep && Nav.findSame(s.el, keep);
       if (again) Nav.focus(again);
@@ -545,7 +545,7 @@ var Screens = (function () {
       var tags = d.tags.map(function (b) {
         return el("span.badge" + (b[1] ? "." + b[1] : ""), {}, [b[2] ? Icons.svg(b[2]) : null, el("span", { text: b[0] })]);
       });
-      if (e.key === lastKey) tags.unshift(el("span.badge.accent", { text: "Last played" }));
+      if (e.key === lastKey) tags.unshift(el("span.badge.accent", { text: tr("Last played") }));
       var side = [];
       if (d.seeds !== null) side.push(el("span.sstat" + (d.seeds <= 2 ? ".low" : ""), {}, [Icons.svg("peers"), el("span", { text: String(d.seeds) })]));
       if (d.size) side.push(el("span.sstat", {}, [Icons.svg("download"), el("span", { text: d.size })]));
@@ -603,11 +603,14 @@ var Screens = (function () {
   var SUBLANGS = [["", "Off"]].concat(LANGS.slice(1));
   var SIZES = [[0.8, "Small"], [1, "Normal"], [1.3, "Large"], [1.6, "Huge"]];
 
-  function choice(label, key, options, fallback, onChange) {
+  // A setting stepped with left/right. Labels and option names are English
+  // and get translated, unless raw (the language list shows native names).
+  function choice(label, key, options, fallback, onChange, raw) {
+    if (!raw) options = options.map(function (o) { return [o[0], tr(o[1])]; });
     var value = U.load(key, fallback);
     var idx = Math.max(0, options.map(function (o) { return o[0]; }).indexOf(value));
     var valueEl = el("span.svalue", { text: options[idx][1] });
-    var r = el("div.setting.stepper.focusable", {}, [el("span", { text: label }),
+    var r = el("div.setting.stepper.focusable", { "data-key": "set:" + key }, [el("span", { text: raw ? label : tr(label) }),
       el("span.sctl", {}, [Icons.svg("chevronLeft"), valueEl, Icons.svg("chevronRight")])]);
     function step(d) {
       idx = (idx + d + options.length) % options.length;
@@ -621,7 +624,7 @@ var Screens = (function () {
   }
 
   function settings() {
-    var serverState = el("span.value", { text: "Checking…" });
+    var serverState = el("span.value", { text: tr("Checking…") });
     var versionEl = el("span.value", { text: "" });
     // fetch() can't read file:// (where webOS apps live); XHR can.
     var x = new XMLHttpRequest();
@@ -629,36 +632,43 @@ var Screens = (function () {
     x.open("GET", "appinfo.json");
     x.send();
     var u = Account.user();
-    var subLangRow = el("div.setting.focusable", {}, [el("span", { text: "Subtitle languages" }), el("span.value", { text: subLangsLabel() })]);
+    var subLangRow = el("div.setting.focusable", {}, [el("span", { text: tr("Subtitle languages") }), el("span.value", { text: subLangsLabel() })]);
     subLangRow.onactivate = function () { App.push(subLanguages()); };
     var rows = [
-      el("h2", { text: "Account" }),
+      el("h2", { text: tr("Account") }),
       info(u ? "Signed in as" : "Not signed in", el("span.value", { text: u ? u.email : "" })),
-      u ? button("Sign out", function () { Account.logout(); Addons.reset(); U.forget("guest"); App.reset(login()); }, "", "signOut")
-        : button("Sign in", function () { U.forget("guest"); App.reset(login()); }, "primary", "mail"),
-      el("h2", { text: "Playback" }),
+      u ? button(tr("Sign out"), function () { Account.logout(); Addons.reset(); U.forget("guest"); App.reset(login()); }, "", "signOut")
+        : button(tr("Sign in"), function () { U.forget("guest"); App.reset(login()); }, "primary", "mail"),
+      el("h2", { text: tr("Playback") }),
       choice("Preferred audio language", "prefAudioLang", LANGS, ""),
       choice("Subtitles", "prefSubLang", SUBLANGS, ""),
       subLangRow,
       choice("Subtitle size", "subSize", SIZES, 1),
       choice("Subtitle background", "subBg", [["none", "None"], ["translucent", "Translucent"], ["solid", "Solid"]], "none"),
       choice("Subtitle color", "subColor", [["white", "White"], ["yellow", "Yellow"]], "white"),
-      el("h2", { text: "Display" }),
+      el("h2", { text: tr("Display") }),
+      // "Idioma (Language)": findable even by someone who can't read the current language.
+      choice(I18n.lang() === "en" ? "Language" : tr("Language") + " (Language)", "uiLang", I18n.LANGS, "en", function (code) {
+        I18n.set(code);
+        App.reset(home());   // rebuild every screen in the new language
+        App.push(settings());
+        App.refocus(App.top().el.querySelector("[data-key=\"set:uiLang\"]"));
+      }, true),
       choice("Clock", "clockFormat", [["12h", "AM/PM"], ["24h", "24-hour"]], "12h", function () {
         var c = s.el.querySelector(".clock");
         if (c && c.refresh) c.refresh();
       }),
-      el("h2", { text: "About" }),
+      el("h2", { text: tr("About") }),
       info("Streaming server", serverState),
       info("Addons", el("span.value", { text: Addons.all().map(function (a) { return a.manifest.name; }).join(", ") })),
       info("Version", versionEl)
     ];
     // Read-only rows still take focus, so the arrows reach (and scroll to) them.
-    function info(label, value) { return el("div.setting.info.focusable", {}, [el("span", { text: label }), value]); }
+    function info(label, value) { return el("div.setting.info.focusable", {}, [el("span", { text: tr(label) }), value]); }
     var s = { el: screen("settings", [topBar("settings"), el("div.page.vscroll", {}, el("div.settings", {}, rows))]) };
     Engine.alive().then(function (ok) {
       U.clear(serverState).appendChild(el("span.dot" + (ok ? ".ok" : "")));
-      serverState.appendChild(document.createTextNode(ok ? "Running" : "Stopped · starts when you play something"));
+      serverState.appendChild(document.createTextNode(tr(ok ? "Running" : "Stopped · starts when you play something")));
     });
     s.key = function (code) {
       var c = Nav.current();
@@ -672,7 +682,7 @@ var Screens = (function () {
 
   function subLangsLabel() {
     var l = U.subLangs();
-    return l.length ? l.map(U.langName).join(", ") : "All languages";
+    return l.length ? l.map(U.langName).join(", ") : tr("All languages");
   }
 
   // Settings > Subtitle languages: which languages the player's subtitle
@@ -683,7 +693,7 @@ var Screens = (function () {
       r.onactivate = function () { onToggle(); render(); };
       return r;
     }
-    var all = row("All languages", function () { U.save("subLangs", []); });
+    var all = row(tr("All languages"), function () { U.save("subLangs", []); });
     var langs = U.langOptions().map(function (o) {
       var r = row(o[1], function () {
         var cur = U.subLangs().filter(function (c) { return c !== o[0]; });
@@ -700,8 +710,8 @@ var Screens = (function () {
     }
     render();
     var s = { el: screen("settings", [topBar("settings"), el("div.page.vscroll", {}, el("div.settings", {}, [
-      el("h2", { text: "Subtitle languages" }),
-      el("p.shint", { text: "The subtitle menu in the player lists only these languages. The others stay available under \u201cOther languages\u201d." }),
+      el("h2", { text: tr("Subtitle languages") }),
+      el("p.shint", { text: tr("The subtitle menu in the player lists only these languages. The others stay available under \u201cOther languages\u201d.") }),
       all
     ].concat(langs)))]) };
     s.initialFocus = function () { return s.el.querySelector(".toggle.on") || all; };

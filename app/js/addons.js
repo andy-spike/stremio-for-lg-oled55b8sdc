@@ -30,7 +30,7 @@ var Addons = (function () {
       })).then(function (r) {
         r = r.filter(Boolean);
         if (!r.length && list && list.length) return list;   // offline guest: keep the cached set
-        if (!r.length) throw new Error("no addon could be reached. Check the internet connection.");
+        if (!r.length) throw new Error(tr("no addon could be reached. Check the internet connection."));
         return r;
       });
     }).then(function (addons) {

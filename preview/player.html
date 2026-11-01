@@ -10,7 +10,10 @@
 <body>
   <div id="screens"></div>
   <div id="toast"></div>
+  <!-- ?lang=es|fr|de|pt previews the interface in that language -->
+  <script>var langParam = /[?&]lang=(\w+)/.exec(location.search); if (langParam) localStorage.setItem("uiLang", JSON.stringify(langParam[1]));</script>
   <script src="../app/js/util.js"></script>
+  <script src="../app/js/i18n.js"></script>
   <script src="../app/js/engine.js"></script>
   <script src="../app/js/nav.js"></script>
   <script src="../app/js/icons.js"></script>

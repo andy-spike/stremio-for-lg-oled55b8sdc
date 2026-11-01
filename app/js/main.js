@@ -74,7 +74,7 @@ var App = (function () {
       if (pop()) return;
       // Leaving the app takes a second Back, so a stray press doesn't exit.
       if (Date.now() - lastBack < 2500) window.close();
-      else { lastBack = Date.now(); toast("Press Back again to exit", 2500); }
+      else { lastBack = Date.now(); toast(tr("Press Back again to exit"), 2500); }
     }
   }
 

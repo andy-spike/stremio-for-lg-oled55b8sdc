@@ -36,15 +36,15 @@ var Player = (function () {
     return v.height + "p";
   }
 
-  function channels(n) { return n > 2 ? (n - 1) + ".1" : n === 1 ? "mono" : "stereo"; }
+  function channels(n) { return n > 2 ? (n - 1) + ".1" : tr(n === 1 ? "mono" : "stereo"); }
   function hhmm(d) { return U.timeOfDay(d); }
 
   function create(opts) {
     var meta = opts.meta, video = opts.video, stream = opts.stream;
     var nextVideo = nextVideoOf(meta, video);
     var isEpisode = video.season !== undefined && video.episode !== undefined;
-    var subtitle = isEpisode ? "Season " + video.season + "  ·  Episode " + video.episode + ((video.title || video.name) ? "  —  " + (video.title || video.name) : "") : "";
-    var title = meta.name + (isEpisode ? " S" + video.season + " E" + video.episode : "");
+    var subtitle = isEpisode ? tr("Season {n}", { n: video.season }) + "  ·  " + tr("Episode {n}", { n: video.episode }) + ((video.title || video.name) ? "  —  " + (video.title || video.name) : "") : "";
+    var title = meta.name + (isEpisode ? " " + tr("S{s} E{e}", { s: video.season, e: video.episode }) : "");
 
     // ---- DOM ----
     var media = el("video.media");
@@ -68,13 +68,13 @@ var Player = (function () {
     var seekbar = el("div.seekbar.focusable", {}, [el("div.track", {}, [barBuf, barPlay, knob]), bubble]);
     // Controls row: track menus left; back 10 s, play, forward 10 s in the
     // center; other streams and next episode right. Icon-only buttons.
-    var btnBack = ctl("back10", "Back 10 s", function () { seekBy(-10, true); });
-    var btnFwd = ctl("forward10", "Forward 10 s", function () { seekBy(10, true); });
-    var btnPlay = ctl("pause", "Pause", togglePause, "primary");
-    var btnNext = nextVideo ? ctl("next", "Next episode", playNext) : null;
-    var btnAudio = ctl("audio", "Audio", function () { openMenu("audio"); });
-    var btnSubs = ctl("subtitles", "Subtitles", function () { openMenu("subs"); });
-    var btnStreams = ctl("sources", "Other streams", otherStreams);
+    var btnBack = ctl("back10", tr("Back 10 s"), function () { seekBy(-10, true); });
+    var btnFwd = ctl("forward10", tr("Forward 10 s"), function () { seekBy(10, true); });
+    var btnPlay = ctl("pause", tr("Pause"), togglePause, "primary");
+    var btnNext = nextVideo ? ctl("next", tr("Next episode"), playNext) : null;
+    var btnAudio = ctl("audio", tr("Audio"), function () { openMenu("audio"); });
+    var btnSubs = ctl("subtitles", tr("Subtitles"), function () { openMenu("subs"); });
+    var btnStreams = ctl("sources", tr("Other streams"), otherStreams);
     var overlay = el("div.overlay.hidden", {}, [
       el("div.otop", {}, [chips, el("div.otime", {}, [clockEl, endsEl])]),
       el("div.obottom", {}, [
@@ -138,21 +138,21 @@ var Player = (function () {
       Nav.focus(null);
       errorView.classList.add("hidden");
       loading.classList.remove("hidden");
-      status("Starting the streaming server…");
+      status(tr("Starting the streaming server…"));
       if (stream.infoHash) watchStats(stream.infoHash.toLowerCase());
       Engine.ensure().then(function () {
-        status(stream.infoHash || /^magnet:/.test(stream.url || "") ? "Connecting to peers…" : "Connecting…");
+        status(tr(stream.infoHash || /^magnet:/.test(stream.url || "") ? "Connecting to peers…" : "Connecting…"));
         return Engine.resolve(stream, { season: video.season, episode: video.episode });
       }).then(function (r) {
         if (closed) return null;
         info = r;
         if (info.infoHash) watchStats(info.infoHash, info.fileIdx);
-        status("Reading the file…");
+        status(tr("Reading the file…"));
         // One retry (a slow torrent may have more of the file by then); then
         // guess from the names, and read it again once it's playing.
         return Engine.probe(info.url).then(null, function () {
           if (closed) return null;
-          status("Still reading the file…");
+          status(tr("Still reading the file…"));
           return Engine.probe(info.url, 30000);
         }).then(null, function () { return null; });
       }).then(function (probe) {
@@ -164,7 +164,7 @@ var Player = (function () {
         plan = Engine.plan({ probe: probe }, U.load("prefAudioLang", ""));
         audioIdx = again && plan.audio[again.audio] ? again.audio : plan.audioIdx;
         var startMode = again && again.mode === "convert" && plan.canConvert ? "convert" : plan.mode;
-        status("Starting playback…");
+        status(tr("Starting playback…"));
         var resumeAt = startAt;
         if (resumeAt === undefined) {
           var st = item.state;
@@ -180,8 +180,8 @@ var Player = (function () {
         if (closed) return;
         var torrent = stream.infoHash || /^magnet:/.test(stream.url || "");
         fail(torrent && !info && /Timed out/.test(e.message || "")
-          ? "Nobody is sharing this torrent right now (no peers found in 60 seconds). Try another stream — ones with more seeders start faster."
-          : e.message || "Couldn't start this stream.");
+          ? tr("Nobody is sharing this torrent right now (no peers found in 60 seconds). Try another stream — ones with more seeders start faster.")
+          : e.message || tr("Couldn't start this stream."));
       });
     }
 
@@ -202,7 +202,7 @@ var Player = (function () {
           if (mode === "direct" && real.mode === "convert" && !failed) {
             var a = real.audio[real.audioIdx];
             load("convert", pos(), real.audioIdx);
-            App.toast("This file has " + a.codec.toUpperCase() + " audio — converting it for this TV…", 5000);
+            App.toast(tr("This file has {codec} audio — converting it for this TV…", { codec: a.codec.toUpperCase() }), 5000);
             return;
           }
           if (!real.audio[audioIdx]) audioIdx = 0;
@@ -222,7 +222,7 @@ var Player = (function () {
         Engine.stats(infoHash, fileIdx).then(function (st) {
           if (!st) return;
           U.clear(statsLine);
-          [["peers", st.peers + (st.peers === 1 ? " peer" : " peers")], ["download", U.bytes(st.downloadSpeed || 0) + "/s"]].forEach(function (x) {
+          [["peers", st.peers === 1 ? tr("1 peer") : tr("{n} peers", { n: st.peers })], ["download", U.bytes(st.downloadSpeed || 0) + "/s"]].forEach(function (x) {
             statsLine.appendChild(el("span.stat", {}, [Icons.svg(x[0]), el("span", { text: x[1] })]));
           });
         });
@@ -284,7 +284,7 @@ var Player = (function () {
         hls.on(Hls.Events.ERROR, function (e, d) {
           if (!d.fatal) return;
           if (d.type === Hls.ErrorTypes.MEDIA_ERROR && !recovered) { recovered = true; hls.recoverMediaError(); return; }
-          fail("Playback failed (" + d.details + ").");
+          fail(tr("Playback failed ({details}).", { details: d.details }));
         });
         hls.loadSource(h.url);
         hls.attachMedia(media);
@@ -334,14 +334,14 @@ var Player = (function () {
       U.clear(errorView);
       var actions = el("div.actions");
       if (mode === "direct" && plan && plan.canConvert && !triedConvert) {
-        actions.appendChild(btn("Try with audio conversion", function () {
+        actions.appendChild(btn(tr("Try with audio conversion"), function () {
           triedConvert = true; errorView.classList.add("hidden"); load("convert", pos(), audioIdx); App.refocus(btnPlay);
         }, "convert", "primary"));
       }
-      actions.appendChild(btn("Other streams", otherStreams, "back", actions.firstChild ? "" : "primary"));
-      actions.appendChild(btn("Retry", function () { start(pos() || undefined, { mode: mode, audio: audioIdx }); }, "retry"));
+      actions.appendChild(btn(tr("Other streams"), otherStreams, "back", actions.firstChild ? "" : "primary"));
+      actions.appendChild(btn(tr("Retry"), function () { start(pos() || undefined, { mode: mode, audio: audioIdx }); }, "retry"));
       errorView.appendChild(el("div.ecard", {}, [Icons.svg("alert", "ealert"),
-        el("h1", { text: "This stream can’t play" }), el("p", { text: message }), actions]));
+        el("h1", { text: tr("This stream can’t play") }), el("p", { text: message }), actions]));
       errorView.classList.remove("hidden");
       App.refocus(actions.firstChild);
     }
@@ -352,9 +352,9 @@ var Player = (function () {
       var v = plan && plan.video;
       if (code === 3 || code === 4) {
         fail(v && plan.videoUnsupported
-          ? "This TV can't decode " + v.codec.toUpperCase() + " video. Pick another stream (H.264 or HEVC/x265 versions work)."
-          : "The TV couldn't decode this file. Another stream of the same title will usually work.");
-      } else fail("The stream stopped responding (network error " + code + ").");
+          ? tr("This TV can't decode {codec} video. Pick another stream (H.264 or HEVC/x265 versions work).", { codec: v.codec.toUpperCase() })
+          : tr("The TV couldn't decode this file. Another stream of the same title will usually work."));
+      } else fail(tr("The stream stopped responding (network error {code}).", { code: code }));
     });
     media.addEventListener("playing", function () {
       if (!playingSeen) {
@@ -363,16 +363,16 @@ var Player = (function () {
       }
       if (resumeNotice) {
         restartUntil = Date.now() + 10000;
-        App.toast("Resuming at " + U.clock(resumeNotice) + " — press rewind to start over", 6000);
+        App.toast(tr("Resuming at {time} — press rewind to start over", { time: U.clock(resumeNotice) }), 6000);
         resumeNotice = 0;
       }
       reveal();
       buffering.classList.add("hidden");
-      setCtl(btnPlay, "pause", "Pause");
+      setCtl(btnPlay, "pause", tr("Pause"));
     });
     media.addEventListener("waiting", function () { if (loading.classList.contains("hidden")) buffering.classList.remove("hidden"); });
-    media.addEventListener("pause", function () { setCtl(btnPlay, "play", "Play"); showOverlay(); saveProgress(true); });
-    media.addEventListener("play", function () { setCtl(btnPlay, "pause", "Pause"); bumpHide(); });
+    media.addEventListener("pause", function () { setCtl(btnPlay, "play", tr("Play")); showOverlay(); saveProgress(true); });
+    media.addEventListener("play", function () { setCtl(btnPlay, "pause", tr("Pause")); bumpHide(); });
     media.addEventListener("ended", function () {
       saveProgress(true);
       if (nextVideo) playNext(); else App.pop();
@@ -383,9 +383,9 @@ var Player = (function () {
       if (!plan) return;
       var a = plan.audio[audioIdx];
       var parts = [resolution(plan.video), plan.video ? plan.video.codec.toUpperCase() : "",
-        a ? (U.langName(a.lang) || "Audio") + " " + a.codec.toUpperCase() + (a.channels ? " " + channels(a.channels) : "") : ""];
+        a ? (U.langName(a.lang) || tr("Audio")) + " " + a.codec.toUpperCase() + (a.channels ? " " + channels(a.channels) : "") : ""];
       U.clear(chips);
-      if (mode === "convert") chips.appendChild(el("span.pchip.accent", {}, [Icons.svg("convert"), el("span", { text: "Audio converted" })]));
+      if (mode === "convert") chips.appendChild(el("span.pchip.accent", {}, [Icons.svg("convert"), el("span", { text: tr("Audio converted") })]));
       parts.filter(Boolean).forEach(function (t) { chips.appendChild(el("span.pchip", { text: t })); });
     }
 
@@ -427,7 +427,7 @@ var Player = (function () {
         clockEl.textContent = hhmm(now);
         if (isFinite(d) && d) {
           timeLeft.textContent = "−" + U.clock(d - (pendingSeek === null ? t : pendingSeek));
-          endsEl.textContent = "Ends at " + hhmm(new Date(now.getTime() + (d - t) * 1000 / (media.playbackRate || 1)));
+          endsEl.textContent = tr("Ends at {time}", { time: hhmm(new Date(now.getTime() + (d - t) * 1000 / (media.playbackRate || 1))) });
         }
       }
       var b = media.buffered, end = 0;
@@ -492,8 +492,8 @@ var Player = (function () {
       if (!a) return;
       if (mode === "convert") { audioIdx = i; if (hls) hls.audioTrack = i; }
       else if (a.native) { audioIdx = i; if (mediaId) Luna.media("selectTrack", { type: "audio", mediaId: mediaId, index: i }); }
-      else if (plan.canConvert) { load("convert", pos(), i); App.toast("Converting " + a.codec.toUpperCase() + " audio for this TV…"); }
-      else { App.toast("This TV can't play " + a.codec.toUpperCase() + " audio for this video."); return; }
+      else if (plan.canConvert) { load("convert", pos(), i); App.toast(tr("Converting {codec} audio for this TV…", { codec: a.codec.toUpperCase() })); }
+      else { App.toast(tr("This TV can't play {codec} audio for this video.", { codec: a.codec.toUpperCase() })); return; }
       showInfo();
     }
 
@@ -529,7 +529,7 @@ var Player = (function () {
         var url = subSel.url;
         Engine.subtitleVtt(url).then(function (vtt) {
           if (subSel.kind === "addon" && subSel.url === url) subs.setCues(Subtitles.parse(vtt));
-        }, function () { if (subSel.url === url) App.toast("Couldn't load those subtitles."); });
+        }, function () { if (subSel.url === url) App.toast(tr("Couldn't load those subtitles.")); });
       }
     }
 
@@ -584,7 +584,7 @@ var Player = (function () {
       var toggleRow = null;
       menuOpener = kind === "audio" ? btnAudio : btnSubs;
       U.clear(menu);
-      menu.appendChild(el("div.mhead", {}, [Icons.svg(kind === "audio" ? "audio" : "subtitles"), el("h2", { text: kind === "audio" ? "Audio" : "Subtitles" })]));
+      menu.appendChild(el("div.mhead", {}, [Icons.svg(kind === "audio" ? "audio" : "subtitles"), el("h2", { text: tr(kind === "audio" ? "Audio" : "Subtitles") })]));
       var list = el("div.mlist.vscroll");
       menu.appendChild(list);
       var focusRow = null;
@@ -598,12 +598,12 @@ var Player = (function () {
         return r;
       }
       if (kind === "audio") {
-        if (!plan || !plan.audio.length) list.appendChild(el("div.msub", { text: "No audio information for this file." }));
+        if (!plan || !plan.audio.length) list.appendChild(el("div.msub", { text: tr("No audio information for this file.") }));
         (plan ? plan.audio : []).forEach(function (a, i) {
           var ch = a.channels ? channels(a.channels) : "";
-          var name = U.langName(a.lang) || "Track " + (i + 1);
+          var name = U.langName(a.lang) || tr("Track {n}", { n: i + 1 });
           item(name, [a.title && a.title.toLowerCase() !== name.toLowerCase() ? a.title : "", a.codec.toUpperCase() + " " + ch,
-            a.native ? "" : plan.canConvert ? "converted" : "not supported", a.guessed ? "from the file name" : ""].filter(Boolean).join(" · "),
+            a.native ? "" : tr(plan.canConvert ? "converted" : "not supported"), a.guessed ? tr("from the file name") : ""].filter(Boolean).join(" · "),
             i === audioIdx, function () { selectAudio(i); closeMenu(); });
         });
       } else {
@@ -615,14 +615,14 @@ var Player = (function () {
           var other = !!lang && lang !== "und" && !U.wantSubLang(lang) && !selected;
           entries.push({ label: label, desc: desc, selected: selected, fn: fn, other: other });
         };
-        item("Off", "", subSel.kind === "off", function () { subSel = { kind: "off" }; applySubs(); closeMenu(); });
+        item(tr("Off"), "", subSel.kind === "off", function () { subSel = { kind: "off" }; applySubs(); closeMenu(); });
         embeddedSubs().forEach(function (t) {
-          add(U.langName(t.lang) || "Track " + (t.index + 1), "In the file" + (t.title ? " · " + t.title : ""), t.lang,
+          add(U.langName(t.lang) || tr("Track {n}", { n: t.index + 1 }), tr("In the file") + (t.title ? " · " + t.title : ""), t.lang,
             subSel.kind === "embedded" && subSel.index === t.index,
             function () { subSel = { kind: "embedded", index: t.index }; applySubs(); closeMenu(); });
         });
         var byLang = {};
-        addonSubs.forEach(function (t) { var k = U.langName(t.lang) || "Other"; (byLang[k] = byLang[k] || []).push(t); });
+        addonSubs.forEach(function (t) { var k = U.langName(t.lang) || tr("Other"); (byLang[k] = byLang[k] || []).push(t); });
         Object.keys(byLang).sort().forEach(function (lang) {
           byLang[lang].slice(0, 6).forEach(function (t, n) {
             add(lang + (n ? " " + (n + 1) : ""), t.addon, t.lang, subSel.kind === "addon" && subSel.url === t.url,
@@ -632,46 +632,46 @@ var Player = (function () {
         var mine = entries.filter(function (e) { return !e.other; });
         var others = entries.filter(function (e) { return e.other; });
         mine.forEach(function (e) { item(e.label, e.desc, e.selected, e.fn); });
-        if (!addonSubsLoaded) list.appendChild(el("div.mnote", {}, [el("div.spinner"), el("span", { text: "Looking for subtitles…" })]));
-        else if (!entries.length) list.appendChild(el("div.mnote", { text: "No subtitles found for this video." }));
-        else if (!mine.length) list.appendChild(el("div.mnote", { text: "No " + U.subLangs().map(U.langName).join(" or ") + " subtitles for this video." }));
+        if (!addonSubsLoaded) list.appendChild(el("div.mnote", {}, [el("div.spinner"), el("span", { text: tr("Looking for subtitles…") })]));
+        else if (!entries.length) list.appendChild(el("div.mnote", { text: tr("No subtitles found for this video.") }));
+        else if (!mine.length) list.appendChild(el("div.mnote", { text: tr("No {langs} subtitles for this video.", { langs: U.subLangs().map(function (c) { return I18n.inSentence(U.langName(c)); }).join(tr(" or ")) }) }));
         // Show/hide the other languages in place; focus stays on this row.
         if (others.length) {
           toggleRow = el("div.mrow.mtoggle.focusable", {}, [
-            el("div.mtext", {}, [el("div.mlabel", { text: (subsShowAll ? "Hide" : "Show") + " other languages" }),
-              el("div.msub", { text: others.length + (others.length === 1 ? " track" : " tracks") })]),
+            el("div.mtext", {}, [el("div.mlabel", { text: tr(subsShowAll ? "Hide other languages" : "Show other languages") }),
+              el("div.msub", { text: others.length === 1 ? tr("1 track") : tr("{n} tracks", { n: others.length }) })]),
             Icons.svg(subsShowAll ? "chevronUp" : "chevronDown", "mchev")]);
           toggleRow.onactivate = function () { subsShowAll = !subsShowAll; focusToggle = true; openMenu("subs"); };
           list.appendChild(toggleRow);
           if (subsShowAll) others.forEach(function (e) { item(e.label, e.desc, e.selected, e.fn); });
         }
-        var size = stepper("Size", SIZE_NAMES[subSize], function (d) {
+        var size = stepper(tr("Size"), tr(SIZE_NAMES[subSize]), function (d) {
           subSize = (subSize + d + SIZES.length) % SIZES.length;
           U.save("subSize", SIZES[subSize]);
           subs.setSize(SIZES[subSize]);
           if (mode === "direct" && mediaId) Luna.media("setSubtitleFontSize", { mediaId: mediaId, fontSize: Math.min(3, subSize) });
-          return SIZE_NAMES[subSize];
+          return tr(SIZE_NAMES[subSize]);
         });
-        var delay = stepper("Delay", delayText(), function (d) {
+        var delay = stepper(tr("Delay"), delayText(), function (d) {
           subDelay = Math.round((subDelay + d * 0.25) * 100) / 100;
           subs.setDelay(subDelay);
           tvSubSync();
           if (subDelay < -2 && mode === "direct" && subSel.kind === "embedded" && d < 0) {
-            App.toast("The TV can show subtitles from the file at most about 2 s early.");
+            App.toast(tr("The TV can show subtitles from the file at most about 2 s early."));
           }
           return delayText();
         });
-        var bgRow = stepper("Background", SUB_BGS[subBg].name, function (d) {
+        var bgRow = stepper(tr("Background"), tr(SUB_BGS[subBg].name), function (d) {
           subBg = (subBg + d + SUB_BGS.length) % SUB_BGS.length;
           U.save("subBg", SUB_BGS[subBg].id);
           applySubStyle();
-          return SUB_BGS[subBg].name;
+          return tr(SUB_BGS[subBg].name);
         });
-        var colorRow = stepper("Color", SUB_COLORS[subColor].name, function (d) {
+        var colorRow = stepper(tr("Color"), tr(SUB_COLORS[subColor].name), function (d) {
           subColor = (subColor + d + SUB_COLORS.length) % SUB_COLORS.length;
           U.save("subColor", SUB_COLORS[subColor].id);
           applySubStyle();
-          return SUB_COLORS[subColor].name;
+          return tr(SUB_COLORS[subColor].name);
         });
         list.appendChild(el("div.mdivider"));
         list.appendChild(size);
@@ -731,20 +731,20 @@ var Player = (function () {
       U.clear(nextCard);
       var label = el("div.ncount");
       var bar = el("div.nbar", {}, el("div"));
-      var go = btn("Play now", playNext, "play", "primary");
+      var go = btn(tr("Play now"), playNext, "play", "primary");
       var thumb = el("div.nthumb", { style: nextVideo.thumbnail ? { backgroundImage: "url(\"" + nextVideo.thumbnail + "\")" } : {} });
       nextCard.appendChild(thumb);
       nextCard.appendChild(el("div.nbody", {}, [
         el("div.nlabel", { text: "E" + nextVideo.episode + (nextVideo.title ? "  ·  " + nextVideo.title : "") }),
-        label, bar, el("div.actions", {}, [go, btn("Dismiss", dismissNext)])]));
+        label, bar, el("div.actions", {}, [go, btn(tr("Dismiss"), dismissNext)])]));
       nextCard.classList.remove("hidden");
       App.refocus(go);
-      label.textContent = "Next episode in " + n + " s";
+      label.textContent = tr("Next episode in {n} s", { n: n });
       // Drain the bar over the countdown (transform only, no layout work).
       setTimeout(function () { bar.firstChild.style.transform = "scaleX(0)"; }, 50);
       nextCountdown = setInterval(function () {
         n--;
-        label.textContent = "Next episode in " + n + " s";
+        label.textContent = tr("Next episode in {n} s", { n: n });
         if (n <= 0) { clearInterval(nextCountdown); playNext(); }
       }, 1000);
     }
@@ -777,7 +777,7 @@ var Player = (function () {
       var wait = group ? Addons.streams(meta.type, nextVideo.id, function (addon, list) {
         if (!found) found = list.filter(function (x) { return x.behaviorHints && x.behaviorHints.bingeGroup === group; })[0] || null;
       }) : Promise.resolve();
-      App.toast("Loading the next episode…");
+      App.toast(tr("Loading the next episode…"));
       wait.then(function () {
         // Cancelled (Dismiss/Back) or the player was closed meanwhile.
         if (closed || token !== nextToken || App.top() !== s) return;
@@ -789,9 +789,9 @@ var Player = (function () {
         if (under && under.streamsFor && under.streamsFor !== next.id) App.pop();
         App.push(Screens.streams(meta, next));
         if (found) { U.setLastStream(next.id, found); open({ meta: meta, video: next, stream: found }); }
-        else App.toast("Pick a stream for the next episode");
+        else App.toast(tr("Pick a stream for the next episode"));
       }, function () {
-        if (token === nextToken) { goingNext = false; App.toast("Couldn't load the next episode."); }
+        if (token === nextToken) { goingNext = false; App.toast(tr("Couldn't load the next episode.")); }
       });
     }
 
@@ -825,7 +825,7 @@ var Player = (function () {
       if (code === KEY.STOP) { App.pop(); return true; }
       if (code === KEY.FF) { seekBy(30); return true; }
       if (code === KEY.RW) {
-        if (Date.now() < restartUntil) { restartUntil = 0; media.currentTime = 0; App.toast("Starting from the beginning"); return true; }
+        if (Date.now() < restartUntil) { restartUntil = 0; media.currentTime = 0; App.toast(tr("Starting from the beginning")); return true; }
         seekBy(-30); return true;
       }
       if (!nextCard.classList.contains("hidden")) {

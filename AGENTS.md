@@ -27,6 +27,9 @@ bump that shipped it) and push, without waiting to be asked.
   modules. The existing code uses `var` and `function` only (no `let`,
   `const`, arrow functions or template strings); keep it that way.
   It is driven by the remote's arrow keys and the Magic Pointer.
+- Every piece of text shown on screen goes through `tr("English text")` and
+  needs a row in `app/js/i18n.js` (Spanish, French, German, Portuguese).
+  Preview a language with `?lang=es` on the preview pages.
 - `app/lib/` is vendored hls.js. Don't edit it.
 - `runtime/` mirrors `/media/developer/stremio` on the TV. Only
   `runtime/bin/stremio-service` is ours and tracked; the rest is gitignored.
