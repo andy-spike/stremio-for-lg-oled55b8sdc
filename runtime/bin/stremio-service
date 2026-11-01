@@ -26,6 +26,14 @@ server_pid() {
   [ -n "$pid" ] && [ -d "/proc/$pid" ] && grep -q server.js "/proc/$pid/cmdline" 2>/dev/null && echo "$pid"
 }
 
+# The watchdog's pid, if that process is still our watchdog. Pids get reused,
+# so a stale pidfile must never lead to killing some other program.
+watchdog_pid() {
+  [ -f "$WATCHPID" ] || return 1
+  pid=$(cat "$WATCHPID")
+  [ -n "$pid" ] && [ -d "/proc/$pid" ] && tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -q "stremio-service watchdog" && echo "$pid"
+}
+
 watchdog() {
   idle=0
   while server_pid >/dev/null; do
@@ -67,7 +75,7 @@ case "$1" in
       : > "$LOG"
       start-stop-daemon -S -b -m -p "$PIDFILE" -x /usr/bin/python -- -c 'import os,sys; os.closerange(3,65536); os.execv("/bin/sh", ["/bin/sh"] + sys.argv[1:])' "$0" run-server
     fi
-    if ! { [ -f "$WATCHPID" ] && [ -d "/proc/$(cat "$WATCHPID")" ]; }; then
+    if ! watchdog_pid >/dev/null; then
       start-stop-daemon -S -b -m -p "$WATCHPID" -x /usr/bin/python -- -c 'import os,sys; os.closerange(3,65536); os.execv("/bin/sh", ["/bin/sh"] + sys.argv[1:])' "$0" watchdog
     fi
     echo started
@@ -86,7 +94,7 @@ case "$1" in
     watchdog
     ;;
   stop)
-    [ -f "$WATCHPID" ] && kill "$(cat "$WATCHPID")" 2>/dev/null
+    pid=$(watchdog_pid) && kill "$pid" 2>/dev/null
     rm -f "$WATCHPID"
     stop_server
     echo stopped
