@@ -1,115 +1,92 @@
-# Stremio for the LG OLED55B8 (webOS 4)
+# Stremio for LG OLED55B8SDC
 
-A Stremio client for this TV: your account, addons, library and Continue
-Watching, torrent and HTTP streams, audio-track and subtitle selection, and
-DTS audio conversion (this TV can't decode DTS).
+An unofficial Stremio app made for the LG OLED55B8SDC running webOS 4.
+Sign in to your Stremio account to use your addons, library, and Continue
+Watching on your TV. Use the remote or Magic Pointer to browse and play.
 
-## Layout
+This project has been tested on this TV. Other LG models may need changes.
+It is not affiliated with Stremio or LG.
 
-| Path | What |
-|---|---|
-| `app/` | The TV app `com.local.stremio`. Plain JS for Chromium 53, no build step. `app/lib/` is vendored hls.js. |
-| `runtime/` | Mirror of `/media/developer/stremio` on the TV: Node 16 (hard-float), a private hard-float glibc (Debian 10), static ffmpeg 7.0.2, Stremio's patched `server.js` 4.20.19, and our `bin/stremio-service`, which starts/stops the server (the app runs it through Homebrew Channel's root exec). Only `stremio-service` is in git; [`runtime/README.md`](runtime/README.md) lists where the rest comes from. |
-| `tools/` | Build, install and debug scripts. |
-| `tests/` | `node tests/subtitles.test.js` checks the VTT parser. |
-| `preview/` | Desktop mock pages of the app screens and player, with sample art. `clip.webm` (sample video) is gitignored; drop in any short `.webm`. |
-| `bin/tv` | SSH helper for the TV (`bin/tv --check`, `bin/tv 'cmd'`). |
-| `dist/` | Built `.ipk` files (gitignored). |
+## Requirements
 
-Why the private runtime: the TV's system is soft-float (`/lib/ld-linux.so.3`)
-and official Node builds are hard-float, so Node runs through its own loader
-(`lib/ld-linux-armhf.so.3 --library-path lib bin/node`). The TV's own
-libraries are never touched.
+- A **rooted LG TV**. Developer Mode alone is not enough for this app.
+  See the [webOS Homebrew rooting guide](https://www.webosbrew.org/rooting/)
+  and check your model and firmware before choosing a method.
+- Homebrew Channel installed, with its root command service available.
+- A computer that can connect to the TV over SSH as root, on the same network.
+- An internet connection and a Stremio account. Set up your addons in Stremio
+  on your phone or computer first.
+- The app **and its playback runtime** installed on the TV (see below).
 
-## How the server runs
+## Install
 
-- As user `nobody`, listening on `127.0.0.1:11470` only (patched in
-  `runtime/bin/patch-server.js`; the patch also lets `file://` app pages use CORS).
-- `DISABLE_CACHING=1`: torrent data stays in a ~45 MB RAM buffer, never on the
-  TV's flash storage. Stremio's own TV build does the same. A disk cache would
-  not help here: the server never trims the torrent being watched, so one large
-  movie would fill the 1.9 GB of free space.
-- Node memory is capped low (`--max-old-space-size=160 --max-semi-space-size=2
-  --optimize-for-size`): the TV has little free RAM, and with a 256 MB cap the
-  server grew to ~200 MB while streaming. Measured at ~135 MB streaming 1080p.
-- `NO_HTTPS_SERVER=1`, `CASTING_DISABLED=1`; HTTPS certificate fetching and
-  network discovery are off.
-- Started on demand when the app opens; a watchdog stops it (and any ffmpeg)
-  5 minutes after the app is closed. Log: `/tmp/stremio-server.log` (RAM, trimmed).
+There are two parts: the TV app and the playback runtime. The runtime does
+work that the older TV browser cannot do on its own.
 
-## How a file plays
+**Fresh installation:** use the agent instructions below or follow the
+[installation guide](docs/install.md). This currently needs some setup;
+there is no complete one-click installer.
 
-| File | Path |
-|---|---|
-| H.264/HEVC/VP9 with AAC, AC-3, E-AC-3, MP3, FLAC or TrueHD | Direct to the TV's hardware player. Audio/embedded-subtitle tracks are switched through `luna://com.webos.media` (as Stremio's official webOS player does). |
-| DTS (or other audio the TV lacks) | The server re-encodes only the audio to AAC 5.1; video is copied. Played with hls.js (Stremio's build), because the TV's own HLS player can't read fragmented-MP4 HLS. |
-| AV1 and other video the TV can't decode | Not converted (this CPU is too slow); the app says so and suggests another stream. |
+**Already have the runtime installed?** Download the `.ipk` file from the
+[latest release](https://github.com/andy-spike/stremio-for-lg-oled55b8sdc/releases/latest)
+and install it using your rooted TV's app installer. An `.ipk` is the TV app
+package; it does not include the playback runtime.
 
-Before playing, the server reads the file (ffprobe) to learn its codecs. If a
-slow torrent doesn't deliver enough of it in time, the app guesses from the file
-name and stream title ("DTS", "x265" ...) and reads the file again once playback
-has started, switching to audio conversion then if it's needed.
+### Ask an agent to install it
 
-Addon subtitles (OpenSubtitles) are converted to WebVTT by the server and drawn by the app.
+Open a coding agent on your computer, give it this repository, and paste:
+
+> Help me install Stremio for LG OLED55B8SDC from
+> https://github.com/andy-spike/stremio-for-lg-oled55b8sdc.
+> Read README.md, docs/install.md, docs/technical.md, and runtime/README.md first.
+> Check my TV model, webOS version, root access, and Homebrew Channel.
+> Ask me for my TV's address and help me set up SSH securely.
+> The connection helper in this repo is configured for the author's TV;
+> adapt it to mine before using it. Check that all playback runtime files
+> are available; a fresh clone does not contain them. If any are missing,
+> explain what is needed before attempting installation.
+> Back up an existing installation before replacing it. Install both the
+> runtime and app, then help me sign in and check playback.
+> Do not root, factory-reset, or reboot my TV without asking me first.
+
+Your agent can handle the computer steps. You will still need to turn on the
+TV and complete any steps that require your remote or account sign-in.
+
+## Use the app
+
+1. Open **Stremio** from the TV's home bar (the purple tile with a white play button).
+2. Follow the sign-in instructions on screen.
+3. Browse your library or search for something to watch.
+4. Choose a title, then choose a stream from your addons.
+5. During playback, use the player controls to choose audio and subtitles.
+
+Use the arrow keys and OK to move and select. Back returns to the previous
+screen. You can also use the Magic Pointer.
+
+Available streams depend on your addons. Some files may not play on this
+older TV; try another stream if that happens. DTS audio is converted for the
+TV, but AV1 video is not supported.
 
 ## Updates
 
-**Server: automatic.** Once a day (and from Settings > Updates > Check for
-updates) the app runs `bin/stremio-update server` on the TV, in the background:
+Open **Settings → Updates → Check for updates**.
+Choose **Install app** when a new app version is available. The app closes
+and opens again during installation. The playback server checks for updates
+automatically once a day.
 
-1. Find the newest server. Stremio publishes each version at
-   `dl.strem.io/server/v<version>/desktop/server.js` with no "latest"
-   pointer, so the updater tries the next version numbers.
-2. Download it, apply `patch-server.js`, and syntax-check the result. If the
-   patch doesn't fit (Stremio changed that code), nothing changes.
-3. Put it in place, keeping the old one as `updates/server.prev.js`, and mark
-   it `updates/pending`. The app restarts the server unless something is playing.
-4. On its next start, `stremio-service` waits for the new server to answer
-   on 127.0.0.1 only. If it doesn't, or if it listens on the network, the
-   previous server comes back and that version is skipped from then on.
+The Updates screen also lets you return to the previous app or server version
+when one is available.
 
-Settings > Updates > "Switch to server X" swaps the current and the previous
-server (going back skips the newer one until you check for updates again).
+## More help
 
-**App: when asked.** The app reads this repo's GitHub releases. When one is
-newer, it says so; "Install app X" downloads its `.ipk` on the TV and installs
-it (the app closes and opens again). "Go back to app X" installs the previous
-release. `tools/release.sh` publishes a release.
+- [Installation and setup](docs/install.md)
+- [Technical guide](docs/technical.md): playback, updates, privacy, and development
+- [Runtime files](runtime/README.md)
+- [Report a problem](https://github.com/andy-spike/stremio-for-lg-oled55b8sdc/issues)
+  with your TV model, webOS version, and what happened. Do not include passwords.
 
-Progress: `/tmp/stremio-update.json`; log: `/tmp/stremio-update.log`.
+## License
 
-## Privacy
-
-The app talks to `api.strem.io` only for sign-in, addons and library sync,
-and to GitHub and `dl.strem.io` only for updates. It
-sends none of the analytics the official apps send (`Events`, `SeekLog`,
-`SkipGaps`).
-
-## Build and install
-
-```sh
-node runtime/bin/patch-server.js <official server.js> runtime/server.js
-tools/install-runtime.sh                 # runtime -> /media/developer/stremio
-tools/deploy.sh                          # build -> dist/, install on the TV, open the app
-```
-
-Bump `version` in `app/appinfo.json` for each release.
-
-Debugging: `tools/cdp.py -e 'expr'` evaluates JS in the app through the TV's
-inspector (:9998); `tools/cdp-shot.py out.jpg` takes a screenshot (pages with a
-full-screen backdrop can't be captured). Both need `pip install websockets`.
-
-Gotchas found on this TV:
-- `luna-send` over SSH prints nothing unless stdin is `/dev/null`.
-- Homebrew Channel's exec service leaks its sockets into commands; background
-  processes must be started with `start-stop-daemon -b`, or the exec call never returns.
-- ffmpeg ignores SIGTERM while blocked on I/O; `stop` follows up with SIGKILL.
-- A suspended (background) app freezes its timers; test with the app in the foreground.
-
-## Undo
-
-```sh
-/media/developer/stremio/bin/stremio-service stop
-rm -rf /media/developer/stremio
-luna-send -n 1 luna://com.webos.appInstallService/dev/remove '{"id":"com.local.stremio"}' < /dev/null
-```
+The original code in this project is available under the [MIT License](LICENSE).
+Third-party software keeps its own license, including the vendored hls.js
+and the separately installed playback runtime.
