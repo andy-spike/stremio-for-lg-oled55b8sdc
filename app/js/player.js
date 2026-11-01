@@ -66,18 +66,24 @@ var Player = (function () {
     var barBuf = el("div.buf"), barPlay = el("div.played"), knob = el("div.knob");
     var bubble = el("div.bubble.hidden");
     var seekbar = el("div.seekbar.focusable", {}, [el("div.track", {}, [barBuf, barPlay, knob]), bubble]);
+    // Controls row: track menus left; back 10 s, play, forward 10 s in the
+    // center; other streams and next episode right. Icon-only buttons.
+    var btnBack = ctl("back10", "Back 10 s", function () { seekBy(-10, true); });
+    var btnFwd = ctl("forward10", "Forward 10 s", function () { seekBy(10, true); });
     var btnPlay = ctl("pause", "Pause", togglePause, "primary");
+    var btnNext = nextVideo ? ctl("next", "Next episode", playNext) : null;
     var btnAudio = ctl("audio", "Audio", function () { openMenu("audio"); });
     var btnSubs = ctl("subtitles", "Subtitles", function () { openMenu("subs"); });
-    var btnNext = nextVideo ? ctl("next", "Next episode", playNext) : null;
     var btnStreams = ctl("sources", "Other streams", function () { App.pop(); });
     var overlay = el("div.overlay.hidden", {}, [
       el("div.otop", {}, [chips, el("div.otime", {}, [clockEl, endsEl])]),
       el("div.obottom", {}, [
         el("div.oheading", {}, [el("div.otitle", { text: meta.name }), subtitle ? el("div.osub", { text: subtitle }) : null]),
-        seekbar,
-        el("div.times", {}, [timeNow, timeLeft]),
-        el("div.controls", {}, [el("div.cgroup", {}, [btnPlay]), el("div.cgroup", {}, [btnAudio, btnSubs, btnNext, btnStreams])])
+        el("div.scrub", {}, [timeNow, seekbar, timeLeft]),
+        el("div.controls", {}, [
+          el("div.cgroup.cleft", {}, [btnAudio, btnSubs]),
+          el("div.cgroup.ccenter", {}, [btnBack, btnPlay, btnFwd]),
+          el("div.cgroup.cright", {}, [btnStreams, btnNext])])
       ])
     ]);
     var menu = el("div.menu.hidden");
@@ -86,7 +92,8 @@ var Player = (function () {
     var root = el("section.screen.player", {}, [media, subLayer, buffering, overlay, menu, nextCard, loading, errorView]);
     var s = { el: root };
 
-    // Icon-only control; the focused one opens into a pill with its label.
+    // Icon-only round control. Focus only changes colours, never size, so
+    // nothing in the row moves. The label is for screen readers.
     function ctl(icon, label, fn, cls) {
       var b = el("div.ctl.focusable" + (cls ? "." + cls : ""), { "aria-label": label }, [Icons.svg(icon), el("span.clabel", { text: label })]);
       b.onactivate = fn;
@@ -115,7 +122,8 @@ var Player = (function () {
     var hlsTrackCount = -1;
     var mediaId = null, mediaIdTimer = null;
     var timers = [], statsTimer = null, hideTimer = null, seekTimer = null;
-    var pendingSeek = null, seekSteps = 0, lastSeekKey = 0;
+    var pendingSeek = null, seekSteps = 0, lastSeekKey = 0, seekLandedAt = 0;
+    var menuOpener = null, subsShowAll = false, focusToggle = false;
     var lastPush = 0, closed = false, nextDismissed = false, nextCountdown = null, triedConvert = false;
     var restartUntil = 0;
     var subBg = indexOfId(SUB_BGS, U.load("subBg", "none")), subColor = indexOfId(SUB_COLORS, U.load("subColor", "white"));
@@ -306,6 +314,7 @@ var Player = (function () {
     function menuOpen() { return !menu.classList.contains("hidden"); }
 
     function showOverlay(focusEl) {
+      if (menuOpen()) return;   // the side menu owns focus; the overlay is already up
       var wasOpen = overlayOpen();
       overlay.classList.remove("hidden");
       subs.raise(true);
@@ -342,11 +351,13 @@ var Player = (function () {
       barBuf.style.width = (isFinite(d) && d ? end / d * 100 : 0) + "%";
       if (mode === "convert") syncHlsCues();
       subs.update(t);
-      if (nextVideo && !nextDismissed && isFinite(d) && d > 300 && d - t < 30 && !media.paused) showNextCard();
+      if (nextVideo && !nextDismissed && isFinite(d) && d > 300 && d - t < 30 && !media.paused && !menuOpen()) showNextCard();
     }
 
     // ---- seeking ----
-    function seekBy(delta) {
+    // keepFocus: called from a skip button, which keeps focus (otherwise focus
+    // moves to the timeline so more arrows keep seeking).
+    function seekBy(delta, keepFocus) {
       var d = media.duration;
       if (!isFinite(d)) return;
       var base = pendingSeek === null ? media.currentTime : pendingSeek;
@@ -357,7 +368,7 @@ var Player = (function () {
       bubble.style.left = (pendingSeek / d * 100) + "%";
       bubble.classList.remove("hidden");
       seekbar.classList.add("seeking");
-      showOverlay();
+      showOverlay(keepFocus || Nav.current() === seekbar ? null : seekbar);
       clearTimeout(seekTimer);
       seekTimer = setTimeout(commitSeek, 700);
     }
@@ -368,6 +379,18 @@ var Player = (function () {
       bubble.classList.add("hidden");
       seekbar.classList.remove("seeking");
       seekSteps = 0;
+      seekLandedAt = Date.now();
+    }
+    // OK right after seeking means "play from here": jump now if the seek is
+    // still pending, and play (never pause). Returns false if there was no
+    // recent seek, so OK falls back to play/pause.
+    function confirmSeek() {
+      if (pendingSeek === null && Date.now() - seekLandedAt > 2000) return false;
+      clearTimeout(seekTimer);
+      commitSeek();
+      seekLandedAt = 0;
+      if (media.paused) media.play();
+      return true;
     }
     function arrowSeek(dir) {
       var now = Date.now();
@@ -447,6 +470,7 @@ var Player = (function () {
         addonSubs = list;
         addonSubsLoaded = true;
         autoSubs();
+        if (menuOpen() && menuOpener === btnSubs) openMenu("subs");   // replace "Looking for subtitles…"
       }, function () { addonSubsLoaded = true; autoSubs(); });
     }
 
@@ -466,6 +490,8 @@ var Player = (function () {
 
     // ---- menus ----
     function openMenu(kind) {
+      var toggleRow = null;
+      menuOpener = kind === "audio" ? btnAudio : btnSubs;
       U.clear(menu);
       menu.appendChild(el("div.mhead", {}, [Icons.svg(kind === "audio" ? "audio" : "subtitles"), el("h2", { text: kind === "audio" ? "Audio" : "Subtitles" })]));
       var list = el("div.mlist.vscroll");
@@ -490,22 +516,44 @@ var Player = (function () {
             i === audioIdx, function () { selectAudio(i); closeMenu(); });
         });
       } else {
+        // Only the languages picked in Settings > Subtitle languages; the
+        // rest sit behind "Other languages" and, once opened, are listed
+        // after them. Untagged tracks and the track in use always show.
+        var entries = [];
+        var add = function (label, desc, lang, selected, fn) {
+          var other = !!lang && lang !== "und" && !U.wantSubLang(lang) && !selected;
+          entries.push({ label: label, desc: desc, selected: selected, fn: fn, other: other });
+        };
         item("Off", "", subSel.kind === "off", function () { subSel = { kind: "off" }; applySubs(); closeMenu(); });
         embeddedSubs().forEach(function (t) {
-          item(U.langName(t.lang) || "Track " + (t.index + 1), "In the file" + (t.title ? " · " + t.title : ""),
+          add(U.langName(t.lang) || "Track " + (t.index + 1), "In the file" + (t.title ? " · " + t.title : ""), t.lang,
             subSel.kind === "embedded" && subSel.index === t.index,
             function () { subSel = { kind: "embedded", index: t.index }; applySubs(); closeMenu(); });
         });
-        if (!addonSubsLoaded) list.appendChild(el("div.mnote", {}, [el("div.spinner"), el("span", { text: "Looking for subtitles…" })]));
-        else if (!addonSubs.length && !embeddedSubs().length) list.appendChild(el("div.mnote", { text: "No subtitles found for this video." }));
         var byLang = {};
         addonSubs.forEach(function (t) { var k = U.langName(t.lang) || "Other"; (byLang[k] = byLang[k] || []).push(t); });
         Object.keys(byLang).sort().forEach(function (lang) {
           byLang[lang].slice(0, 6).forEach(function (t, n) {
-            item(lang + (n ? " " + (n + 1) : ""), t.addon, subSel.kind === "addon" && subSel.url === t.url,
+            add(lang + (n ? " " + (n + 1) : ""), t.addon, t.lang, subSel.kind === "addon" && subSel.url === t.url,
               function () { subSel = { kind: "addon", url: t.url, id: t.id }; applySubs(); closeMenu(); });
           });
         });
+        var mine = entries.filter(function (e) { return !e.other; });
+        var others = entries.filter(function (e) { return e.other; });
+        mine.forEach(function (e) { item(e.label, e.desc, e.selected, e.fn); });
+        if (!addonSubsLoaded) list.appendChild(el("div.mnote", {}, [el("div.spinner"), el("span", { text: "Looking for subtitles…" })]));
+        else if (!entries.length) list.appendChild(el("div.mnote", { text: "No subtitles found for this video." }));
+        else if (!mine.length) list.appendChild(el("div.mnote", { text: "No " + U.subLangs().map(U.langName).join(" or ") + " subtitles for this video." }));
+        // Show/hide the other languages in place; focus stays on this row.
+        if (others.length) {
+          toggleRow = el("div.mrow.mtoggle.focusable", {}, [
+            el("div.mtext", {}, [el("div.mlabel", { text: (subsShowAll ? "Hide" : "Show") + " other languages" }),
+              el("div.msub", { text: others.length + (others.length === 1 ? " track" : " tracks") })]),
+            Icons.svg(subsShowAll ? "chevronUp" : "chevronDown", "mchev")]);
+          toggleRow.onactivate = function () { subsShowAll = !subsShowAll; focusToggle = true; openMenu("subs"); };
+          list.appendChild(toggleRow);
+          if (subsShowAll) others.forEach(function (e) { item(e.label, e.desc, e.selected, e.fn); });
+        }
         var size = stepper("Size", SIZE_NAMES[subSize], function (d) {
           subSize = (subSize + d + SIZES.length) % SIZES.length;
           U.save("subSize", SIZES[subSize]);
@@ -538,7 +586,8 @@ var Player = (function () {
       }
       menu.classList.remove("hidden");
       clearTimeout(hideTimer);
-      App.refocus(focusRow);
+      App.refocus(focusToggle && toggleRow || focusRow);
+      focusToggle = false;
     }
 
     // Apply the background and colour to both renderers: ours (addon and
@@ -565,9 +614,11 @@ var Player = (function () {
     }
     function delayText() { return (subDelay > 0 ? "+" : subDelay < 0 ? "−" : "") + Math.abs(subDelay).toFixed(2) + " s"; }
 
+    // Focus goes back to the button that opened the menu.
     function closeMenu() {
+      if (!menuOpen()) return;
       menu.classList.add("hidden");
-      showOverlay(btnPlay);
+      showOverlay(menuOpener || btnPlay);
     }
 
     // ---- next episode ----
@@ -657,6 +708,9 @@ var Player = (function () {
         var c = Nav.current();
         if (code === KEY.BACK) { closeMenu(); return true; }
         if (c && c.step && (code === KEY.LEFT || code === KEY.RIGHT)) { c.step(code === KEY.LEFT ? -1 : 1); return true; }
+        // The menu sits on the right edge: Left leaves it, Right has nowhere to go.
+        if (code === KEY.LEFT) { closeMenu(); return true; }
+        if (code === KEY.RIGHT) return true;
         return false;
       }
       if (!overlayOpen()) {
@@ -667,13 +721,26 @@ var Player = (function () {
       }
       if (code === KEY.BACK) { if (media.paused) return false; overlay.classList.add("hidden"); subs.raise(false); return true; }
       if (Nav.current() === seekbar && (code === KEY.LEFT || code === KEY.RIGHT)) { arrowSeek(code === KEY.LEFT ? -1 : 1); return true; }
-      if (Nav.current() === seekbar && code === KEY.OK) { togglePause(); return true; }
+      if (Nav.current() === seekbar && code === KEY.OK) { if (!confirmSeek()) togglePause(); return true; }
       // Nothing sits above the timeline, so Up there hides the controls.
       if (Nav.current() === seekbar && code === KEY.UP) { clearTimeout(hideTimer); overlay.classList.add("hidden"); subs.raise(false); return true; }
       return false;
     };
 
     s.initialFocus = function () { return null; };
+    // Which part of the player owns focus: an open card or menu keeps arrows,
+    // hover and clicks to itself until it closes (see Nav).
+    s.focusScope = function () {
+      if (!errorView.classList.contains("hidden")) return errorView;
+      if (menuOpen()) return menu;
+      if (!nextCard.classList.contains("hidden")) return nextCard;
+      return null;
+    };
+    // Pointer click outside the open menu or next-episode card closes it.
+    s.dismissScope = function () {
+      if (menuOpen()) closeMenu();
+      else if (!nextCard.classList.contains("hidden")) dismissNext();
+    };
     s.visibility = function (visible) { if (!visible) { media.pause(); saveProgress(true); } };
     s.destroy = function () {
       closed = true;

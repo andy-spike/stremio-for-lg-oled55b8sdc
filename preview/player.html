@@ -65,20 +65,22 @@
       else if (code === KEY.OK) Nav.activate();
     }
     function later(ms, fn) { setTimeout(fn, ms); }
+    // Open the controls and activate a control by its label.
+    function press(label) { key(KEY.UP); App.refocus(U.$("[aria-label='" + label + "']")); key(KEY.OK); }
 
     Player.open({ meta: meta, video: meta.videos[0], stream: { infoHash: "abc" } });
     var v = U.$("video");
     v.muted = true;
     later(1500, function () {
-      if (state === "controls") { key(KEY.UP); key(KEY.RIGHT); }
-      if (state === "audio") { key(KEY.UP); key(KEY.RIGHT); key(KEY.OK); }
-      if (state === "subs") { key(KEY.UP); key(KEY.RIGHT); key(KEY.RIGHT); key(KEY.OK); }
+      if (state === "controls") { key(KEY.UP); }
+      if (state === "audio") { press("Audio"); }
+      if (state === "subs") { press("Subtitles"); }
       if (state === "seek") { v.currentTime = 40; later(300, function () { key(KEY.RIGHT); key(KEY.RIGHT); key(KEY.RIGHT); }); }
       if (state === "paused") { v.pause(); }
       if (state === "next") { v.currentTime = 395; }
       if (state === "subtrans" || state === "subsolid") {
         // Subtitles menu -> 4th row (first addon track) -> OK.
-        key(KEY.UP); key(KEY.RIGHT); key(KEY.RIGHT); key(KEY.OK);
+        press("Subtitles");
         key(KEY.DOWN); key(KEY.DOWN); key(KEY.DOWN); key(KEY.OK);
         later(600, function () {
           if (state === "subtrans") { key(KEY.UP); key(KEY.UP); }      // play -> timeline -> hides

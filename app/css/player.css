@@ -47,6 +47,11 @@
 .otitle { font-size: 2.6vw; font-weight: 700; color: var(--ink); line-height: 1.1; }
 .osub { font-size: 1.4vw; color: var(--muted); margin-top: 0.6vw; }
 
+.scrub { display: flex; align-items: center; }
+.scrub .seekbar { flex: 1 1 auto; margin: 0 1.2vw; }
+.tnow, .tleft { flex: 0 0 auto; min-width: 4.4vw; font-size: 1.3vw; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tnow { color: var(--ink); }
+.tleft { text-align: right; }
 .seekbar { position: relative; padding: 0.9vw 0; border-radius: 1vw; }
 .seekbar .track { position: relative; height: 0.36vw; background: var(--faint); border-radius: 0.2vw; }
 .seekbar .buf, .seekbar .played { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0.2vw; }
@@ -59,22 +64,24 @@
 .seekbar.focus { box-shadow: none; }
 .bubble { position: absolute; bottom: 2.6vw; transform: translateX(-50%); padding: 0.4vw 0.9vw; border-radius: 0.5vw;
   background: #fff; color: #0d0f14; font-size: 1.15vw; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.times { display: flex; justify-content: space-between; margin-top: 0.4vw; font-size: 1.2vw; color: var(--muted);
-  font-variant-numeric: tabular-nums; }
-.times .tnow { color: var(--ink); }
-
-.controls { display: flex; justify-content: space-between; align-items: center; margin-top: 1.6vw; }
+/* Three groups; the side groups share the leftover width equally, so the
+   center group (back, play, forward) sits in the middle of the screen. No CSS grid:
+   Chromium 53 doesn't have it. */
+.controls { display: flex; align-items: center; margin-top: 2vw; }
 .cgroup { display: flex; align-items: center; }
-.ctl { display: flex; align-items: center; height: 4vw; min-width: 4vw; box-sizing: border-box; justify-content: center;
+.cleft, .cright { flex: 1 1 0; }
+.cright { justify-content: flex-end; }
+.ccenter { flex: 0 0 auto; margin: 0 2.4vw; }
+.ctl { display: flex; align-items: center; height: 4vw; width: 4vw; box-sizing: border-box; justify-content: center;
   border-radius: 2vw; margin-left: 1.2vw; background: rgba(255,255,255,0.16); color: var(--ink); text-shadow: none;
   transition: background-color 120ms ease-out, color 120ms ease-out; }
-.cgroup:first-child .ctl { margin-left: 0; }
+.cgroup .ctl:first-child { margin-left: 0; }
 .ctl .icon { width: 1.75vw; height: 1.75vw; }
-.ctl.primary { height: 4.8vw; min-width: 4.8vw; border-radius: 2.4vw; }
+.ctl .icon svg text { font-family: inherit; }
+.ctl.primary { height: 4.8vw; width: 4.8vw; border-radius: 2.4vw; }
 .ctl.primary .icon { width: 2vw; height: 2vw; }
-.ctl .clabel { display: none; font-size: 1.3vw; font-weight: 600; margin-left: 0.8vw; white-space: nowrap; }
-.ctl.focus { background: #fff; color: #0d0f14; padding: 0 1.6vw 0 1.3vw; }
-.ctl.focus .clabel { display: inline; }
+.ctl .clabel { display: none; }
+.ctl.focus { background: #fff; color: #0d0f14; }
 
 /* ---- subtitles ---- */
 .sublayer { position: absolute; left: var(--edge); right: var(--edge); bottom: 7vh; text-align: center; pointer-events: none; }
@@ -105,6 +112,8 @@
 .mcheck { width: 1.6vw; height: 1.6vw; margin-left: 1.2vw; color: var(--accent); }
 .mrow.focus { background: #fff; }
 .mrow.focus .mlabel, .mrow.focus .mcheck { color: #0d0f14; }
+.mchev { width: 1.5vw; height: 1.5vw; margin-left: 1.2vw; color: var(--muted); }
+.mrow.focus .mchev { color: #0d0f14; }
 .mrow.focus .msub { color: #4a4d56; }
 .mnote { display: flex; align-items: center; padding: 1vw 1.2vw; font-size: 1.15vw; color: var(--muted); }
 .mnote .spinner { width: 1.3vw; height: 1.3vw; border-width: 0.18vw; margin-right: 0.9vw; }
