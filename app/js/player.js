@@ -74,7 +74,7 @@ var Player = (function () {
     var btnNext = nextVideo ? ctl("next", "Next episode", playNext) : null;
     var btnAudio = ctl("audio", "Audio", function () { openMenu("audio"); });
     var btnSubs = ctl("subtitles", "Subtitles", function () { openMenu("subs"); });
-    var btnStreams = ctl("sources", "Other streams", function () { App.pop(); });
+    var btnStreams = ctl("sources", "Other streams", otherStreams);
     var overlay = el("div.overlay.hidden", {}, [
       el("div.otop", {}, [chips, el("div.otime", {}, [clockEl, endsEl])]),
       el("div.obottom", {}, [
@@ -125,7 +125,7 @@ var Player = (function () {
     var pendingSeek = null, seekSteps = 0, lastSeekKey = 0, seekLandedAt = 0;
     var menuOpener = null, subsShowAll = false, focusToggle = false;
     var lastPush = 0, closed = false, nextDismissed = false, nextCountdown = null, triedConvert = false;
-    var restartUntil = 0;
+    var restartUntil = 0, resumeNotice = 0;
     var subBg = indexOfId(SUB_BGS, U.load("subBg", "none")), subColor = indexOfId(SUB_COLORS, U.load("subColor", "white"));
     subs.setSize(SIZES[subSize]);
     subs.setStyle(SUB_BGS[subBg].id, SUB_COLORS[subColor].id);
@@ -133,7 +133,9 @@ var Player = (function () {
     // ---- startup ----
     function status(text) { statusText.textContent = text; }
 
-    function start(startAt) {
+    // again: { mode, audio } to retry the same way (keeps audio conversion).
+    function start(startAt, again) {
+      Nav.focus(null);
       errorView.classList.add("hidden");
       loading.classList.remove("hidden");
       status("Starting the streaming server…");
@@ -150,18 +152,18 @@ var Player = (function () {
       }).then(function (probe) {
         if (closed || !info) return;
         plan = Engine.plan({ probe: probe }, U.load("prefAudioLang", ""));
-        audioIdx = plan.audioIdx;
+        audioIdx = again && plan.audio[again.audio] ? again.audio : plan.audioIdx;
+        var startMode = again && again.mode === "convert" && plan.canConvert ? "convert" : plan.mode;
         status("Starting playback…");
         var resumeAt = startAt;
         if (resumeAt === undefined) {
           var st = item.state;
           if (st.video_id === video.id && st.timeOffset > 5000 && (!st.duration || st.timeOffset < st.duration * 0.9)) {
             resumeAt = st.timeOffset / 1000;
-            restartUntil = Date.now() + 10000;
-            App.toast("Resuming at " + U.clock(resumeAt) + " — press rewind to start over", 6000);
+            resumeNotice = resumeAt;   // shown once playback actually starts
           }
         }
-        load(plan.mode, resumeAt || 0, audioIdx);
+        load(startMode, resumeAt || 0, audioIdx);
         loadAddonSubs();
       }).catch(function (e) {
         if (closed) return;
@@ -188,6 +190,11 @@ var Player = (function () {
     // ---- media loading ----
     function teardown() {
       clearInterval(mediaIdTimer);
+      clearTimeout(seekTimer);
+      pendingSeek = null;
+      bubble.classList.add("hidden");
+      seekbar.classList.remove("seeking");
+      if (seekOnce) { media.removeEventListener("loadedmetadata", seekOnce); seekOnce = null; }
       mediaId = null;
       if (hls) { hls.destroy(); hls = null; }
       if (hlsId) { Engine.hlsDestroy(hlsId); hlsId = null; }
@@ -196,6 +203,10 @@ var Player = (function () {
       try { media.load(); } catch (e) { /* ignore */ }
     }
 
+    // Current position; before the resume seek lands, where we're starting.
+    var startPos = 0, seekOnce = null;
+    function pos() { return media.currentTime || startPos || 0; }
+
     function load(newMode, startAt, wantAudio) {
       teardown();
       mode = newMode;
@@ -203,12 +214,15 @@ var Player = (function () {
       playingSeen = false;
       audioIdx = wantAudio;
       var resumeAt = startAt || 0;
+      startPos = resumeAt;
       if (mode === "direct") {
         media.src = info.url;
-        media.addEventListener("loadedmetadata", function seekOnce() {
+        seekOnce = function () {
           media.removeEventListener("loadedmetadata", seekOnce);
+          seekOnce = null;
           if (resumeAt > 0) media.currentTime = resumeAt;
-        });
+        };
+        media.addEventListener("loadedmetadata", seekOnce);
         media.play();
         waitForMediaId();
       } else {
@@ -254,7 +268,7 @@ var Player = (function () {
           off.then(settleTvSubs, settleTvSubs);
           if (plan.audio.length > 1) Luna.media("selectTrack", { type: "audio", mediaId: mediaId, index: audioIdx });
           applySubs();
-        } else if (++tries > 150) { clearInterval(mediaIdTimer); settleTvSubs(); }
+        } else if (++tries === 150) settleTvSubs();   // keep polling: slow torrents start late
       }, 60);
     }
 
@@ -266,6 +280,7 @@ var Player = (function () {
     function reveal() {
       if (!playingSeen || !tvSubsSettled) return;
       loading.classList.add("hidden");
+      clearInterval(statsTimer);
     }
 
     function fail(message) {
@@ -278,11 +293,11 @@ var Player = (function () {
       var actions = el("div.actions");
       if (mode === "direct" && plan && plan.canConvert && !triedConvert) {
         actions.appendChild(btn("Try with audio conversion", function () {
-          triedConvert = true; errorView.classList.add("hidden"); load("convert", media.currentTime || 0, audioIdx); App.refocus(btnPlay);
+          triedConvert = true; errorView.classList.add("hidden"); load("convert", pos(), audioIdx); App.refocus(btnPlay);
         }, "convert", "primary"));
       }
-      actions.appendChild(btn("Other streams", function () { App.pop(); }, "back", actions.firstChild ? "" : "primary"));
-      actions.appendChild(btn("Retry", function () { start(media.currentTime || undefined); App.refocus(); }, "retry"));
+      actions.appendChild(btn("Other streams", otherStreams, "back", actions.firstChild ? "" : "primary"));
+      actions.appendChild(btn("Retry", function () { start(pos() || undefined, { mode: mode, audio: audioIdx }); }, "retry"));
       errorView.appendChild(el("div.ecard", {}, [Icons.svg("alert", "ealert"),
         el("h1", { text: "This stream can’t play" }), el("p", { text: message }), actions]));
       errorView.classList.remove("hidden");
@@ -303,6 +318,11 @@ var Player = (function () {
       if (!playingSeen) {
         playingSeen = true;
         setTimeout(settleTvSubs, 2000);
+      }
+      if (resumeNotice) {
+        restartUntil = Date.now() + 10000;
+        App.toast("Resuming at " + U.clock(resumeNotice) + " — press rewind to start over", 6000);
+        resumeNotice = 0;
       }
       reveal();
       buffering.classList.add("hidden");
@@ -373,7 +393,9 @@ var Player = (function () {
       barBuf.style.width = (isFinite(d) && d ? end / d * 100 : 0) + "%";
       if (mode === "convert") syncHlsCues();
       subs.update(t);
-      if (nextVideo && !nextDismissed && isFinite(d) && d > 300 && d - t < 30 && !media.paused && !menuOpen()) showNextCard();
+      var nearEnd = nextVideo && !nextDismissed && isFinite(d) && d > 300 && d - t < 30;
+      if (nearEnd && !media.paused && !menuOpen()) showNextCard();
+      else if (nextCountdown !== null && !goingNext && (!nearEnd || media.paused)) hideNextCard();
     }
 
     // ---- seeking ----
@@ -390,7 +412,7 @@ var Player = (function () {
       bubble.style.left = (pendingSeek / d * 100) + "%";
       bubble.classList.remove("hidden");
       seekbar.classList.add("seeking");
-      showOverlay(keepFocus || Nav.current() === seekbar ? null : seekbar);
+      showOverlay(keepFocus ? null : seekbar);
       clearTimeout(seekTimer);
       seekTimer = setTimeout(commitSeek, 700);
     }
@@ -428,7 +450,7 @@ var Player = (function () {
       if (!a) return;
       if (mode === "convert") { audioIdx = i; if (hls) hls.audioTrack = i; }
       else if (a.native) { audioIdx = i; if (mediaId) Luna.media("selectTrack", { type: "audio", mediaId: mediaId, index: i }); }
-      else if (plan.canConvert) { load("convert", media.currentTime || 0, i); App.toast("Converting " + a.codec.toUpperCase() + " audio for this TV…"); }
+      else if (plan.canConvert) { load("convert", pos(), i); App.toast("Converting " + a.codec.toUpperCase() + " audio for this TV…"); }
       else { App.toast("This TV can't play " + a.codec.toUpperCase() + " audio for this video."); return; }
       showInfo();
     }
@@ -449,8 +471,10 @@ var Player = (function () {
       if (mode === "convert" && hls) hls.subtitleTrack = subSel.kind === "embedded" ? subSel.index : -1;
       if (mode === "direct" && mediaId) {
         if (subSel.kind === "embedded") {
+          var want = subSel, forId = mediaId;
           Luna.media("setSubtitleEnable", { mediaId: mediaId, enable: true }).then(function () {
             setTimeout(function () {
+              if (subSel !== want || mediaId !== forId) return;   // changed meanwhile
               Luna.media("selectTrack", { type: "text", mediaId: mediaId, index: subSel.index });
               Luna.media("setSubtitleFontSize", { mediaId: mediaId, fontSize: Math.min(3, subSize) });
               tvSubStyle();
@@ -459,9 +483,10 @@ var Player = (function () {
         } else Luna.media("setSubtitleEnable", { mediaId: mediaId, enable: false });
       }
       if (subSel.kind === "addon") {
-        Engine.subtitleVtt(subSel.url).then(function (vtt) {
-          if (subSel.kind === "addon") subs.setCues(Subtitles.parse(vtt));
-        }, function () { App.toast("Couldn't load those subtitles."); });
+        var url = subSel.url;
+        Engine.subtitleVtt(url).then(function (vtt) {
+          if (subSel.kind === "addon" && subSel.url === url) subs.setCues(Subtitles.parse(vtt));
+        }, function () { if (subSel.url === url) App.toast("Couldn't load those subtitles."); });
       }
     }
 
@@ -669,18 +694,26 @@ var Player = (function () {
       }, 1000);
     }
     function dismissNext() {
-      clearInterval(nextCountdown);
       nextDismissed = true;
+      hideNextCard();
+    }
+    // Hide the card and cancel the countdown or a next episode being loaded.
+    // Without dismissing, it can show again (e.g. after pausing).
+    function hideNextCard() {
+      clearInterval(nextCountdown);
+      nextCountdown = null;
+      if (goingNext) { goingNext = false; nextToken++; }
       nextCard.classList.add("hidden");
       App.refocus(btnPlay);
     }
 
     // Binge watching: reuse a stream from the same release group if the
     // addon marks one (behaviorHints.bingeGroup), like the official apps.
-    var goingNext = false;
+    var goingNext = false, nextToken = 0;
     function playNext() {
       if (goingNext || !nextVideo) return;
       goingNext = true;
+      var token = ++nextToken;
       clearInterval(nextCountdown);
       saveProgress(true);
       media.pause();
@@ -691,11 +724,28 @@ var Player = (function () {
       }) : Promise.resolve();
       App.toast("Loading the next episode…");
       wait.then(function () {
+        // Cancelled (Dismiss/Back) or the player was closed meanwhile.
+        if (closed || token !== nextToken || App.top() !== s) return;
         var next = nextVideo;
         App.pop();
-        if (found) { U.save("lastStream:" + next.id, found); open({ meta: meta, video: next, stream: found }); }
-        else { App.push(Screens.streams(meta, next)); App.toast("Pick a stream for the next episode"); }
+        // Drop the previous episode's stream list so the stack doesn't grow
+        // and "Other streams" belongs to the episode being watched.
+        var under = App.top();
+        if (under && under.streamsFor && under.streamsFor !== next.id) App.pop();
+        App.push(Screens.streams(meta, next));
+        if (found) { U.setLastStream(next.id, found); open({ meta: meta, video: next, stream: found }); }
+        else App.toast("Pick a stream for the next episode");
+      }, function () {
+        if (token === nextToken) { goingNext = false; App.toast("Couldn't load the next episode."); }
       });
+    }
+
+    // Back to this video's stream list: the screen underneath when we came
+    // from it, otherwise (Resume, next episode) a fresh one.
+    function otherStreams() {
+      App.pop();
+      var t = App.top();
+      if (!(t && t.streamsFor === video.id)) App.push(Screens.streams(meta, video));
     }
 
     // ---- progress ----
@@ -711,9 +761,9 @@ var Player = (function () {
     // ---- keys ----
     s.key = function (code) {
       if (code !== KEY.BACK) bumpHide();
-      if (!errorView.classList.contains("hidden") || !loading.classList.contains("hidden")) {
-        return false;   // Nav handles buttons; Back closes the player
-      }
+      if (!errorView.classList.contains("hidden")) return false;   // Nav handles its buttons; Back closes the player
+      // Loading: nothing to press (focus may sit on a hidden button). Back closes.
+      if (!loading.classList.contains("hidden")) return code !== KEY.BACK;
       if (code === KEY.PLAY) { media.play(); return true; }
       if (code === KEY.PAUSE) { media.pause(); return true; }
       if (code === KEY.PLAYPAUSE) { togglePause(); return true; }
@@ -749,6 +799,12 @@ var Player = (function () {
       if (Nav.current() === seekbar && code === KEY.UP) { clearTimeout(hideTimer); overlay.classList.add("hidden"); subs.raise(false); return true; }
       return false;
     };
+
+    root.addEventListener("mousemove", function () {
+      if (!loading.classList.contains("hidden") || !errorView.classList.contains("hidden")) return;
+      if (menuOpen() || !nextCard.classList.contains("hidden")) return;
+      if (overlayOpen()) bumpHide(); else showOverlay();
+    });
 
     s.initialFocus = function () { return null; };
     // Which part of the player owns focus: an open card or menu keeps arrows,

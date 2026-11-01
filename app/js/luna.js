@@ -10,7 +10,8 @@ var Luna = (function () {
       var b = new PalmServiceBridge();
       pending.push(b);
       b.onservicecallback = function (msg) {
-        pending.splice(pending.indexOf(b), 1);
+        var at = pending.indexOf(b);
+        if (at >= 0) pending.splice(at, 1);
         var r;
         try { r = JSON.parse(msg); } catch (e) { r = { returnValue: false }; }
         resolve(r);
