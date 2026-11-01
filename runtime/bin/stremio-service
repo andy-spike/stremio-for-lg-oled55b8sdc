@@ -19,6 +19,12 @@ WATCHPID=/tmp/stremio-watchdog.pid
 LOG=/tmp/stremio-server.log
 APP_ID=com.local.stremio
 IDLE_LIMIT=300
+# Node memory. The TV has ~250 MB free with swap in use. The server's live
+# heap is ~50 MB, but a 256 MB cap let it grow to ~200 MB while streaming
+# before collecting. A lower cap, a small young generation and
+# --optimize-for-size keep it collecting early. (Torrent data lives in
+# Buffers, outside this limit.)
+NODE_MEMORY="--max-old-space-size=160 --max-semi-space-size=2 --optimize-for-size"
 
 server_pid() {
   [ -f "$PIDFILE" ] || return 1
@@ -87,7 +93,7 @@ case "$1" in
       NO_HTTPS_SERVER=1 CASTING_DISABLED=1 DISABLE_CACHING=1 YTDL_NO_UPDATE=1 \
       FFMPEG_BIN="$ROOT/bin/ffmpeg" FFPROBE_BIN="$ROOT/bin/ffprobe" \
       setuidgid nobody nice -n 5 "$ROOT/lib/ld-linux-armhf.so.3" --library-path "$ROOT/lib" \
-      "$ROOT/bin/node" --max-old-space-size=256 "$ROOT/server.js" >> "$LOG" 2>&1 < /dev/null
+      "$ROOT/bin/node" $NODE_MEMORY "$ROOT/server.js" >> "$LOG" 2>&1 < /dev/null
     ;;
   watchdog)
     # Internal: started by "start".

@@ -29,6 +29,9 @@ libraries are never touched.
   TV's flash storage. Stremio's own TV build does the same. A disk cache would
   not help here: the server never trims the torrent being watched, so one large
   movie would fill the 1.9 GB of free space.
+- Node memory is capped low (`--max-old-space-size=160 --max-semi-space-size=2
+  --optimize-for-size`): the TV has little free RAM, and with a 256 MB cap the
+  server grew to ~200 MB while streaming. Measured at ~135 MB streaming 1080p.
 - `NO_HTTPS_SERVER=1`, `CASTING_DISABLED=1`; HTTPS certificate fetching and
   network discovery are off.
 - Started on demand when the app opens; a watchdog stops it (and any ffmpeg)
