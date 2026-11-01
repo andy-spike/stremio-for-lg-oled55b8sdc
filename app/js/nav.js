@@ -83,8 +83,30 @@ var Nav = (function () {
 
   // Nearest candidate in a direction, preferring elements that overlap on
   // the other axis (so moving down in a list stays in the column).
+  // Up/down between poster rows (Home, search results): to the poster on
+  // screen directly above or below, or the row's nearest one when it is
+  // shorter. Past the first or last row, the normal rules apply (Up from
+  // the first row reaches the top bar).
+  function rowMove(dir) {
+    var strip = current.parentNode;
+    if (!strip || !strip.classList || !strip.classList.contains("strip")) return null;
+    var strips = U.$all(".strip", area()).filter(function (st) { return st.offsetParent && st.querySelector(".card.focusable"); });
+    var target = strips[strips.indexOf(strip) + (dir === "up" ? -1 : 1)];
+    if (!target) return dir === "up" ? area().querySelector(".topbar .tab.active") : null;
+    var a = current.getBoundingClientRect(), ax = a.left + a.width / 2, best = null, bestDist = Infinity;
+    U.$all(".card.focusable", target).forEach(function (c) {
+      var b = c.getBoundingClientRect(), d = Math.abs(b.left + b.width / 2 - ax);
+      if (d < bestDist) { bestDist = d; best = c; }
+    });
+    return best;
+  }
+
   function move(dir) {
     if (!current || !contains(current)) { focus(first()); return true; }
+    if (dir === "up" || dir === "down") {
+      var inRow = rowMove(dir);
+      if (inRow) { focus(inRow); return true; }
+    }
     var a = current.getBoundingClientRect();
     var ax = a.left + a.width / 2, ay = a.top + a.height / 2;
     var best = null, bestScore = Infinity, bestInRow = null, bestRowScore = Infinity;
