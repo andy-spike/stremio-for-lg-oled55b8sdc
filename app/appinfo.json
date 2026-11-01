@@ -1,6 +1,6 @@
 {
   "id": "com.local.stremio",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "vendor": "local",
   "type": "web",
   "main": "index.html",

@@ -636,7 +636,12 @@ var Player = (function () {
         var mine = entries.filter(function (e) { return !e.other; });
         var others = entries.filter(function (e) { return e.other; });
         mine.forEach(function (e) { item(e.label, e.desc, e.selected, e.fn); });
-        if (!addonSubsLoaded) list.appendChild(el("div.mnote", {}, [el("div.spinner"), el("span", { text: tr("Looking for subtitles…") })]));
+        if (!addonSubsLoaded) {   // addon subtitles on the way: rows shaped like the ones coming
+          var sk = el("div.skeleton");
+          for (var b = 0; b < 3; b++) sk.appendChild(el("div.mrow", {}, el("div.mtext", {}, [
+            el("div.skel.line", { style: { width: "9vw", height: "1.4vw" } }), el("div.skel.line", { style: { width: "12vw", height: "1.1vw" } })])));
+          list.appendChild(sk);
+        }
         else if (!entries.length) list.appendChild(el("div.mnote", { text: tr("No subtitles found for this video.") }));
         else if (!mine.length) list.appendChild(el("div.mnote", { text: tr("No {langs} subtitles for this video.", { langs: U.subLangs().map(function (c) { return I18n.inSentence(U.langName(c)); }).join(tr(" or ")) }) }));
         // Show/hide the other languages in place; focus stays on this row.

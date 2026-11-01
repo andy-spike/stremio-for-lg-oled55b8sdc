@@ -79,7 +79,6 @@ h2 { font-size: 1.5vw; font-weight: 700; margin: 2.4vw 0 0.8vw; color: var(--ink
 /* A ring without a blurred drop shadow: a large blur is repainted on every move. */
 .card.focus .art { box-shadow: 0 0 0 0.25vw #fff; }
 .card.focus .name { color: #fff; }
-.card.placeholder { width: 10.5vw; height: 15.75vw; border-radius: 0.6vw; background: var(--raised); }
 .card .progress { position: absolute; left: 0.6vw; right: 0.6vw; bottom: 0.6vw; height: 0.32vw; background: rgba(0,0,0,0.55);
   border-radius: 0.2vw; overflow: hidden; }
 .card .progress div, .episode .progress div { height: 100%; background: var(--accent); }
@@ -217,3 +216,19 @@ input.focus { border-color: #fff; }
 .setting.toggle .tcheck { width: 1.5vw; height: 1.5vw; visibility: hidden; color: var(--accent); }
 .setting.toggle.on .tcheck { visibility: visible; }
 .setting.toggle.on.focus .tcheck { color: #0d0f14; }
+
+/* ---- skeletons: same boxes as the real components, filled grey ---- */
+.skeleton { animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+.skel { background: var(--raised2); border-radius: 0.4vw; }
+.skel.line { height: 1.1vw; margin: 0.45vw 0; max-width: 100%; }
+.skelcard .art.skel { border-radius: 0.6vw; }
+.skelcard .sname { width: 7.5vw; height: 1.15vw; margin-top: 0.9vw; }
+.skel.sh2 { width: 16vw; height: 1.8vw; margin: 1.6vw 0 0.4vw; }
+.skel.sbtn { display: inline-block; height: 3.4vw; border-radius: 1.7vw; margin: 0 0.8vw 0.8vw 0; }
+.skel.schip { display: inline-block; width: 8.5vw; height: 2.8vw; border-radius: 1.4vw; margin: 0 0.6vw 0.6vw 0; }
+.skel.sthumb { flex: 0 0 auto; width: 12vw; height: 6.75vw; border-radius: 0.5vw; margin-right: 1.4vw; }
+.skel.sbadge { width: 4.6vw; height: 1.6vw; margin-right: 0.5vw; }
+.sside .skel.line { margin-left: auto; }
+.skelcode { display: flex; flex-wrap: wrap; width: 100%; }
+.skel.sqr { width: 17.6vw; height: 17.6vw; border-radius: 0.8vw; margin-right: 2.4vw; }

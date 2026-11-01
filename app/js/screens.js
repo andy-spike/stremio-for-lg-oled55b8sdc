@@ -26,7 +26,54 @@ var Screens = (function () {
     return m >= 60 ? tr("{h} h {m} min left", { h: Math.floor(m / 60), m: m % 60 }) : tr("{m} min left", { m: Math.max(1, m) });
   }
 
-  function spinner(text) { return el("div.loading", {}, [el("div.spinner"), el("span", { text: text || "" })]); }
+  // ---------- skeletons ----------
+  // Grey stand-ins with the size and layout of what replaces them, so a
+  // screen fills in place instead of jumping from a spinner to the full UI.
+  // A ".skeleton" wrapper pulses its whole group (one opacity animation).
+
+  function bone(cls, style) { return el("div.skel" + (cls ? "." + cls : ""), style ? { style: style } : {}); }
+  function line(width, height) { return bone("line", height ? { width: width, height: height } : { width: width }); }
+
+  function skelCards(n) {
+    var out = [];
+    for (var i = 0; i < n; i++) out.push(el("div.card.poster.skelcard", {}, [el("div.art.skel"), bone("sname")]));
+    return out;
+  }
+  // A poster row; the title is a bar until it is known.
+  function skelRow(title) {
+    return el("div.row", {}, [title ? el("h2", { text: title }) : bone("sh2"), el("div.strip", {}, skelCards(9))]);
+  }
+  function detailSkeleton() {
+    return el("div.skeleton", {}, [
+      bone("", { width: "24vw", height: "6.5vw", marginBottom: "2.4vw" }),   // logo
+      line("18vw", "1.3vw"), el("div", { style: { height: "1.6vw" } }),       // facts
+      line("41vw", "1.4vw"), line("40vw", "1.4vw"), line("42vw", "1.4vw"), line("26vw", "1.4vw"),
+      el("div.actions", { style: { marginTop: "2.4vw" } }, [bone("sbtn", { width: "12vw" }), bone("sbtn", { width: "15vw" })])]);
+  }
+  function episodesSkeleton() {
+    var chips = [], eps = [];
+    for (var i = 0; i < 4; i++) chips.push(bone("schip"));
+    for (var k = 0; k < 6; k++) {
+      eps.push(el("div.episode", {}, [bone("sthumb"), el("div.text", { style: { flex: "1 1 auto" } },
+        [line("16vw", "1.35vw"), line("8vw", "1vw"), line("26vw"), line("21vw")])]));
+    }
+    return el("div.skeleton", {}, [el("div.seasons", {}, chips), el("div.episodes", {}, eps)]);
+  }
+  function streamsSkeleton() {
+    var rows = [];
+    for (var i = 0; i < 7; i++) {
+      rows.push(el("div.stream", {}, [
+        el("div.squal", {}, [bone("", { width: "4.6vw", height: "1.7vw" })]),
+        el("div.sbody", {}, [line((26 + (i * 9) % 20) + "vw", "1.3vw"), el("div.badges", {}, [bone("sbadge"), bone("sbadge"), bone("sbadge")])]),
+        el("div.sside", {}, [line("9vw", "1.2vw"), line("12vw", "0.95vw")])]));
+    }
+    return el("div.skeleton", {}, rows);
+  }
+  function codeSkeleton() {
+    return el("div.skeleton.skelcode", {}, [bone("sqr"),
+      el("div.how", {}, [line("22vw", "1.4vw"), line("19vw", "1.4vw"), line("23vw", "1.4vw"), line("15vw", "2vw")]),
+      bone("", { width: "30vw", height: "5vw", marginTop: "1.6vw" })]);
+  }
 
   function typeLabel(type) { return type === "movie" ? tr("Movies") : type === "series" ? tr("Series") : type === "channel" ? tr("Channels") : type === "tv" ? "TV" : type; }
 
@@ -86,9 +133,10 @@ var Screens = (function () {
   }
 
   // Top bar with the main sections.
-  function topBar(active) {
+  // inert: drawn but not selectable (while the app is still loading).
+  function topBar(active, inert) {
     var tabs = [["home", "Home"], ["search", "Search"], ["library", "Library"], ["settings", "Settings"]].map(function (t) {
-      var b = el("div.tab.focusable" + (t[0] === active ? ".active" : ""), {}, [Icons.svg(t[0]), el("span", { text: tr(t[1]) })]);
+      var b = el("div.tab" + (inert ? "" : ".focusable") + (t[0] === active ? ".active" : ""), {}, [Icons.svg(t[0]), el("span", { text: tr(t[1]) })]);
       b.onactivate = function () {
         if (t[0] === active) return;
         var make = { home: null, search: search, library: library, settings: settings }[t[0]];
@@ -119,7 +167,7 @@ var Screens = (function () {
   // ---------- sign-in ----------
 
   function login() {
-    var codeBox = el("div.linkbox", {}, spinner(tr("Getting a sign-in code…")));
+    var codeBox = el("div.linkbox", {}, codeSkeleton());
     var emailForm = el("div.emailform.hidden");
     var email = el("input.focusable", { type: "email", placeholder: tr("Email") });
     var pass = el("input.focusable", { type: "password", placeholder: tr("Password") });
@@ -181,12 +229,15 @@ var Screens = (function () {
 
   // Load addons and the library, then show Home.
   function enter() {
-    var s = { el: screen("splash", [brand(), spinner(tr("Loading your addons…"))]) };
+    // Home's outline while the addons load.
+    var s = { el: screen("home", [topBar("home", true), el("div.page.skeleton", {}, [skelRow(), skelRow(), skelRow()])]) };
     App.reset(s);
     Account.sync().catch(function () {}).then(function () { return Addons.load(); }).then(function () {
       App.reset(home());
     }, function (e) {
-      U.clear(s.el).appendChild(el("div.error", { text: tr("Couldn't load addons: {msg}", { msg: e.message }) }));
+      U.clear(s.el).appendChild(brand());
+      s.el.className = "screen splash";
+      s.el.appendChild(el("div.error", { text: tr("Couldn't load addons: {msg}", { msg: e.message }) }));
       s.el.appendChild(button(tr("Try again"), enter, "", "retry"));
       App.refocus();
     });
@@ -217,7 +268,8 @@ var Screens = (function () {
 
     var entries = Addons.boardCatalogs();
     var rows = entries.map(function (entry) {
-      var r = row((entry.catalog.name ? tr(entry.catalog.name) : entry.addon.manifest.name) + " — " + typeLabel(entry.catalog.type), [el("div.card.placeholder.poster")]);
+      var r = row((entry.catalog.name ? tr(entry.catalog.name) : entry.addon.manifest.name) + " — " + typeLabel(entry.catalog.type), skelCards(9));
+      r.querySelector(".strip").classList.add("skeleton");
       page.appendChild(r);
       return { entry: entry, el: r };
     });
@@ -227,6 +279,7 @@ var Screens = (function () {
         return Addons.catalog(r.entry).then(function (metas) {
           if (!metas.length) { r.el.remove(); return; }
           var strip = r.el.querySelector(".strip");
+          strip.classList.remove("skeleton");
           U.clear(strip);
           metas.slice(0, 40).forEach(function (m) { strip.appendChild(card(m)); });
           showArtIn(strip, 10);
@@ -257,7 +310,7 @@ var Screens = (function () {
       var q = input.value.trim();
       var mine = ++seq;
       if (!q) { U.clear(results); return; }
-      U.clear(results).appendChild(spinner(tr("Searching…")));
+      U.clear(results).appendChild(el("div.skeleton", {}, [skelRow(), skelRow()]));
       var cats = Addons.searchCatalogs();
       var found = 0, failed = 0;
       U.settle(cats.map(function (entry) {
@@ -385,6 +438,7 @@ var Screens = (function () {
 
       U.clear(side);
       if (isSeries) renderEpisodes(episodes, lib, target);
+      else if (type === "series" && !full) { side.classList.remove("hidden"); side.appendChild(episodesSkeleton()); }   // episodes on the way
       else side.classList.add("hidden");
     }
 
@@ -428,10 +482,14 @@ var Screens = (function () {
       fill();
     }
 
-    if (meta) render(); else info.appendChild(spinner(tr("Loading…")));
+    if (meta) render();
+    else {
+      info.appendChild(detailSkeleton());
+      if (type === "series") side.appendChild(episodesSkeleton()); else side.classList.add("hidden");
+    }
     Addons.meta(type, id).then(function (m) {
       if (!m) {
-        if (!meta) U.clear(info).appendChild(el("div.error", { text: tr("No addon has details for this title.") }));
+        if (!meta) { U.clear(side).classList.add("hidden"); U.clear(info).appendChild(el("div.error", { text: tr("No addon has details for this title.") })); }
         else { full = true; render(); if (App.top() === s) App.refocus(Nav.current()); }   // play from the preview
         return;
       }
@@ -561,6 +619,7 @@ var Screens = (function () {
       });
       U.clear(list);
       shown.forEach(function (e) { list.appendChild(row(e)); });
+      if (!done && !entries.length) list.appendChild(streamsSkeleton());
       if (done && !entries.length) list.appendChild(el("div.empty", { text: hidden ? tr("None of the streams found can play on the TV.")
         : tr("No streams found. Install stream addons (for example Torrentio) from stremio.com on your phone or computer — they sync to the TV after you sign in.") }));
       if (App.top() !== s) return;
@@ -596,6 +655,8 @@ var Screens = (function () {
     }
 
     setStatus();
+    list.appendChild(streamsSkeleton());
+    filters.classList.add("hidden");
     Addons.streams(meta.type, video.id, function (addon, found) {
       answered++;
       found.forEach(function (st) {
