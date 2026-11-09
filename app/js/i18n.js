@@ -11,6 +11,9 @@ var I18n = (function () {
   var LOCALES = { en: "en-US", es: "es-CO", fr: "fr-FR", de: "de-DE", pt: "pt-BR" };
 
   var TABLE = {
+    "Title addons are temporarily unavailable. Trying again…": ["Los complementos de detalles no están disponibles temporalmente. Reintentando…", "Les extensions de détails sont temporairement indisponibles. Nouvelle tentative…", "Die Detail-Add-ons sind vorübergehend nicht verfügbar. Erneuter Versuch…", "Os complementos de detalhes estão temporariamente indisponíveis. Tentando novamente…"],
+    "Can't reach your title addons yet. Trying again…": ["Todavía no se puede conectar con tus complementos de detalles. Reintentando…", "Impossible de joindre vos extensions de détails pour le moment. Nouvelle tentative…", "Deine Detail-Add-ons sind noch nicht erreichbar. Erneuter Versuch…", "Ainda não foi possível acessar seus complementos de detalhes. Tentando novamente…"],
+    "Title addons rejected the request. Check their settings.": ["Los complementos de detalles rechazaron la solicitud. Revisa su configuración.", "Les extensions de détails ont refusé la demande. Vérifiez leurs paramètres.", "Die Detail-Add-ons haben die Anfrage abgelehnt. Prüfe ihre Einstellungen.", "Os complementos de detalhes recusaram a solicitação. Verifique suas configurações."],
     // ---- top bar and shared ----
     "Home": ["Inicio", "Accueil", "Start", "Início"],
     "Search": ["Buscar", "Rechercher", "Suche", "Buscar"],

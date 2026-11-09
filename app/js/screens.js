@@ -505,30 +505,26 @@ var Screens = (function () {
       info.appendChild(detailSkeleton());
       if (type === "series") side.appendChild(episodesSkeleton()); else side.classList.add("hidden");
     }
-    // Right after the TV turns on, Wi-Fi can take a minute to connect: keep
-    // retrying while this screen is open instead of giving up.
-    var closed = false, retryTimer = null;
-    function load() {
-      Addons.meta(type, id).then(function (m) {
-        if (closed) return;
-        if (!m) {
-          if (!meta) { U.clear(side).classList.add("hidden"); U.clear(info).appendChild(el("div.error", { text: tr("No addon has details for this title.") })); }
-          else { full = true; render(); if (App.top() === s) App.refocus(Nav.current()); }   // play from the preview
-          return;
-        }
-        var focused = Nav.current();
-        meta = m;
-        full = true;
-        render();
-        if (App.top() === s) App.refocus(focused);
-      }, function () {
-        if (closed) return;
-        if (!meta) { U.clear(side).classList.add("hidden"); U.clear(info).appendChild(el("div.error", { text: tr("Can't reach the internet yet. Trying again…") })); }
-        retryTimer = setTimeout(load, 3000);
-      });
-    }
-    load();
-    s.destroy = function () { closed = true; clearTimeout(retryTimer); };
+    // Keep recovering after startup/network failures. Destroying the screen
+    // stops both retries and any in-flight addon requests.
+    var stop = U.retry(function () { return Addons.meta(type, id); }, function (m) {
+      if (!m) {
+        if (!meta) { U.clear(side).classList.add("hidden"); U.clear(info).appendChild(el("div.error", { text: tr("No addon has details for this title.") })); }
+        else { full = true; render(); if (App.top() === s) App.refocus(Nav.current()); }
+        return;
+      }
+      var focused = Nav.current();
+      meta = m;
+      full = true;
+      render();
+      if (App.top() === s) App.refocus(focused);
+    }, function (e, retrying) {
+      var message = !retrying ? tr("Title addons rejected the request. Check their settings.")
+        : e.kind === "service" ? tr("Title addons are temporarily unavailable. Trying again…")
+        : tr("Can't reach your title addons yet. Trying again…");
+      if (!meta) { U.clear(side).classList.add("hidden"); U.clear(info).appendChild(el("div.error", { text: message })); }
+    });
+    s.destroy = function () { stop(); };
     s.initialFocus = function () { return s.el.querySelector(".btn.primary"); };
     s.show = function (returning) { if (returning && meta) render(); };   // App.pop restores focus by data-key
     return s;

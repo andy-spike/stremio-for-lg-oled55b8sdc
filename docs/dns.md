@@ -222,3 +222,43 @@ absent, and the forwarder remained stopped. Cinemeta metadata returned HTTP
 foreground app, and its local streaming server answered /settings. Installed
 util.js and screens.js SHA-256 hashes matched the tested source. This verifies
 service/API behavior, not on-screen rendering or actual playback.
+
+## Title-details recovery (1.3.10, 2026-11-08)
+
+The user's overnight symptom appears after selecting a show; other TV apps
+can connect. A full software boot captured on the TV joined Vince Gilligan
+around 23.78 seconds. Eighteen metadata HTTPS probes from uptime 37.40 to
+225.82 seconds all succeeded, including probes bypassing DNS. Stremio was
+launched at uptime 72.44 seconds; the streaming server answered by the next
+sample at 81.97 seconds. This did not reproduce an overnight failure or
+verify on-screen title rendering. The original capture's bounded Luna status
+command used incompatible timeout syntax; it has since been corrected to
+BusyBox's `timeout -t 3`. The independent Wi-Fi, IP, DNS and HTTPS probes ran.
+
+Reproduction against the title-loading code did confirm that HTTP 503/429
+errors were treated as an answered request, returning no title instead of
+retrying. A 404 from one addon also hid a temporary error from another.
+Requests ran sequentially with 20-second per-provider timeouts.
+
+1.3.10 queries up to four metadata providers concurrently, with a 15-second
+per-request timeout. The first valid matching title wins (rather than waiting
+for providers in collection order), and outstanding requests are cancelled.
+A 404 or an empty successful response means that provider lacks the title.
+Network failures, 408/429/5xx errors and invalid responses remain retryable,
+even alongside another provider's 404 or permanent error. Other HTTP errors
+are reported as rejected requests and are not retried indefinitely.
+
+The title screen now uses the shared retry controller with a 3-to-15-second
+capped delay and cancels requests/timers when closed. It distinguishes
+unreachable title addons, temporary addon failures and rejected requests;
+it does not infer a TV-wide internet outage from an addon request failure.
+All new copy is translated into Spanish, French, German and Portuguese.
+No router, clock, Wi-Fi or DNS configuration change was needed for this fix.
+
+Network-recovery tests exercise the actual addon and screen-loader code for
+mixed errors, retry classification, invalid responses, concurrent success,
+bounded concurrency, cancellation, repeated offline recovery and permanent
+errors. All five test suites pass. 1.3.10 was installed and launched on the TV;
+installed addon/screen file hashes matched the source, and metadata HTTPS
+returned HTTP 200. Overnight power-down behavior remains unverified, with
+the one-shot startup capture armed for a subsequent full boot.

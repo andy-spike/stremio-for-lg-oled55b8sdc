@@ -64,6 +64,96 @@ function helpers() {
     const catalog = context.Addons.catalog({addon: addons[0], catalog: {type: 'movie', id: 'top'}});
     const cancelled = assert.rejects(catalog, /Cancelled/); catalog.cancel(); await cancelled;
   }
+  function titleHelpers(count) {
+    const h = helpers();
+    h.U.load = () => Array.from({length: count}, (_, i) => ({transportUrl: 'https://title' + i + '/manifest.json', manifest: {resources: ['meta'], types: ['series']}}));
+    const context = {U: h.U, Promise}; vm.createContext(context);
+    vm.runInContext(fs.readFileSync('app/js/addons.js', 'utf8'), context);
+    return Object.assign(h, {context, Addons: context.Addons});
+  }
+  {
+    const h = titleHelpers(2), p = h.Addons.meta('series', 'tt1');
+    assert.equal(h.requests.length, 2, 'both providers start without serial waiting');
+    h.requests[1].respond(200, '{"meta":{"id":"tt1","type":"series","name":"Recovered"}}');
+    assert.equal((await p).name, 'Recovered');
+    assert.ok(h.requests[0].aborted, 'slow provider is cancelled when another has the title');
+  }
+  for (const status of [408, 429, 500, 503]) {
+    const h = titleHelpers(2), p = h.Addons.meta('series', 'tt1');
+    const failed = assert.rejects(p, e => e.retryable === true && e.kind === 'service');
+    h.requests[0].respond(404, ''); h.requests[1].respond(status, ''); await failed;
+  }
+  {
+    const h = titleHelpers(2), p = h.Addons.meta('series', 'tt1');
+    const failed = assert.rejects(p, e => e.retryable === true && e.kind === 'unreachable');
+    h.requests[0].respond(404, ''); h.requests[1].onerror(); await failed;
+  }
+  {
+    const h = titleHelpers(2), p = h.Addons.meta('series', 'tt1');
+    h.requests[0].respond(404, ''); h.requests[1].respond(200, '{"meta":null}'); assert.equal(await p, null);
+    assert.equal(await titleHelpers(0).Addons.meta('series', 'tt1'), null);
+  }
+  {
+    const h = titleHelpers(2), p = h.Addons.meta('series', 'tt1');
+    const failed = assert.rejects(p, e => e.retryable === false);
+    h.requests[0].respond(404, ''); h.requests[1].respond(403, ''); await failed;
+  }
+  for (const response of ['invalid JSON', '{"meta":{"id":"wrong-title"}}', 'null']) {
+    const h = titleHelpers(1), p = h.Addons.meta('series', 'tt1');
+    const failed = assert.rejects(p, e => e.retryable === true && e.kind === 'service');
+    h.requests[0].respond(200, response); await failed;
+  }
+  {
+    const h = titleHelpers(6), p = h.Addons.meta('series', 'tt1');
+    assert.equal(h.requests.length, 4, 'bounded concurrency');
+    h.requests[0].respond(404, ''); await tick(); assert.equal(h.requests.length, 5);
+    h.requests[4].respond(200, '{"meta":{"id":"tt1"}}'); await p;
+    assert.equal(h.requests.length, 5, 'no queued requests after success');
+    assert.ok(h.requests.slice(1, 4).every(r => r.aborted));
+  }
+  {
+    const h = titleHelpers(2), p = h.Addons.meta('series', 'tt1');
+    const cancelled = assert.rejects(p, e => e.cancelled === true);
+    p.cancel(); await cancelled; assert.ok(h.requests.every(r => r.aborted));
+  }
+  // Run the actual title-screen loader with real retry and addon code.
+  function titleScreen(h) {
+    const context = h.context;
+    const info = {children: [], appendChild(n) { this.children.push(n); }}, side = {classList: {add() {}}};
+    h.U.clear = n => { n.children = []; return n; };
+    Object.assign(context, {s: {}, type: 'series', id: 'tt1', meta: null, info, side, full: false,
+      el: (tag, attrs) => attrs, tr: s => s, render() { context.renders = (context.renders || 0) + 1; },
+      App: {top: () => context.s, refocus() {}}, Nav: {current: () => null}});
+    const source = fs.readFileSync('app/js/screens.js', 'utf8');
+    const start = source.indexOf('    // Keep recovering after startup/network failures.');
+    vm.runInContext(source.slice(start, source.indexOf('    s.initialFocus', start)), context);
+    return {context, info, destroy: () => context.s.destroy()};
+  }
+  {
+    const h = titleHelpers(2), screen = titleScreen(h);
+    h.requests[0].respond(404, ''); h.requests[1].respond(503, ''); await tick();
+    assert.ok(screen.info.children[0].text.includes('temporarily unavailable'));
+    assert.equal(h.fire(), 3000);
+    h.requests[2].respond(200, '{"meta":{"id":"tt1","name":"Recovered"}}'); await tick();
+    assert.equal(screen.context.renders, 1); assert.equal(h.timers.size, 0); assert.ok(h.requests[3].aborted);
+    screen.destroy();
+  }
+  {
+    const h = titleHelpers(1), screen = titleScreen(h);
+    for (const delay of [3000, 6000, 12000, 15000]) {
+      h.requests[h.requests.length - 1].onerror(); await tick();
+      assert.ok(screen.info.children[0].text.includes("title addons")); assert.equal(h.fire(), delay);
+    }
+    screen.destroy(); await tick();
+    assert.ok(h.requests[h.requests.length - 1].aborted); assert.equal(h.timers.size, 0);
+    assert.ok(!screen.context.renders);
+  }
+  {
+    const h = titleHelpers(1), screen = titleScreen(h);
+    h.requests[0].respond(403, ''); await tick();
+    assert.ok(screen.info.children[0].text.includes('Check their settings')); assert.equal(h.timers.size, 0);
+    screen.destroy();
+  }
   // Exercise the actual Home and startup functions with a small DOM stand-in.
   {
     const h = helpers();
@@ -106,5 +196,5 @@ function helpers() {
     context.enter(); await tick(); assert.equal(active.el.className, 'screen splash');
     h.fire(); await tick(); assert.equal(active.el.spec, 'recovered-home');
   }
-  console.log('Network recovery: cancellation, timeouts, backoff, cleanup, permanent errors and partial-addon recovery passed');
+  console.log('Network recovery: cancellation, timeouts, backoff, cleanup, permanent errors and partial-addon and title recovery passed');
 })().catch(e => { console.error(e); process.exitCode = 1; });

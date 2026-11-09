@@ -102,25 +102,67 @@ var Addons = (function () {
     return result;
   }
 
-  // First addon (in collection order) that returns a meta wins, like Stremio.
-  // Resolves null when addons answered but none has the title; rejects with
-  // e.offline when none could be reached (e.g. the TV is still connecting).
+  // Race a bounded set of providers: a stalled addon must not hold up a
+  // healthy one. The first valid title wins; cancel the remaining requests.
+  // null means no title; rejected errors describe availability separately.
   function meta(type, id) {
     var candidates = all().filter(function (a) { return supports(a, "meta", type, id); });
-    var reached = false;
-    return candidates.reduce(function (p, addon) {
-      return p.then(function (found) {
-        if (found) return found;
-        return U.request(url(addon, "meta", type, id), { timeout: 20000 })
-          .then(function (r) { reached = true; return r && r.meta ? r.meta : null; },
-            function (e) { if (e && e.status) reached = true; return null; });
-      });
-    }, Promise.resolve(null)).then(function (m) {
-      if (m || reached || !candidates.length) return m;
-      var e = new Error("No addon could be reached");
-      e.offline = true;
-      throw e;
+    var requests = [], next = 0, active = 0, done = false, failure = null, rejectResult;
+    function cancelRequests() {
+      requests.forEach(function (p) { if (p.cancel) p.cancel(); });
+    }
+    var result = new Promise(function (resolve, reject) {
+      rejectResult = reject;
+      function recordFailure(e) {
+        if (e.status === 404) return;   // this provider does not have the title
+        var retryable = !e.status || e.status === 408 || e.status === 429 || e.status >= 500;
+        // A temporary failure must not be hidden by another provider's 404
+        // or permanent error. A later retry may still find the title.
+        if (!failure || (retryable && !failure.retryable)) {
+          failure = new Error("Title addon request failed");
+          failure.retryable = retryable;
+          failure.kind = e.status || e.responseInvalid ? "service" : "unreachable";
+        }
+      }
+      function finish(m) {
+        if (done) return;
+        done = true;
+        cancelRequests();
+        if (m) resolve(m);
+        else if (failure) reject(failure);
+        else resolve(null);
+      }
+      function pump() {
+        if (done) return;
+        while (active < 4 && next < candidates.length) start(candidates[next++]);
+        if (!active && next === candidates.length) finish(null);
+      }
+      function start(addon) {
+        active++;
+        var p = U.request(url(addon, "meta", type, id), { timeout: 15000 });
+        requests.push(p);
+        p.then(function (r) {
+          if (done) return;
+          var m = r && r.meta;
+          if (m && m.id === id && (!m.type || m.type === type)) { finish(m); return; }
+          if (!r || typeof r !== "object" || (m && (!m.id || m.id !== id || (m.type && m.type !== type)))) {
+            recordFailure({ responseInvalid: true });
+          }
+          active--; pump();
+        }, function (e) {
+          if (done) return;
+          recordFailure(e);
+          active--; pump();
+        });
+      }
+      pump();
     });
+    result.cancel = function () {
+      if (done) return;
+      done = true; cancelRequests();
+      var e = new Error("Cancelled"); e.cancelled = true; rejectResult(e);
+    };
+    return result;
   }
 
   // Streams from every addon in parallel. onGroup(addon, streams) is called

@@ -97,7 +97,7 @@ var U = (function () {
           e.status = x.status; reject(e); return;
         }
         try { resolve(opts.text ? x.responseText : JSON.parse(x.responseText)); }
-        catch (e) { reject(e); }
+        catch (e) { e.responseInvalid = true; reject(e); }
       };
       x.onerror = function () { fail("Network error"); };
       x.ontimeout = function () { fail("Timed out"); };
@@ -120,7 +120,8 @@ var U = (function () {
         if (!stopped) success(value);
       }, function (e) {
         if (stopped) return;
-        var transient = !e.status || e.status === 408 || e.status === 429 || e.status >= 500;
+        var transient = typeof e.retryable === "boolean" ? e.retryable
+          : !e.status || e.status === 408 || e.status === 429 || e.status >= 500;
         failure(e, transient);
         if (transient) { timer = setTimeout(run, delay); delay = Math.min(delay * 2, 15000); }
       });
