@@ -232,15 +232,18 @@ var Screens = (function () {
     // Home's outline while the addons load.
     var s = { el: screen("home", [topBar("home", true), el("div.page.skeleton", {}, [skelRow(), skelRow(), skelRow()])]) };
     App.reset(s);
-    Account.sync().catch(function () {}).then(function () { return Addons.load(); }).then(function () {
-      App.reset(home());
-    }, function (e) {
+    var stop = U.retry(function () {
+      return Account.sync().catch(function () {}).then(function () { return Addons.load(); });
+    }, function () { App.reset(home()); }, function (e, retrying) {
       U.clear(s.el).appendChild(brand());
       s.el.className = "screen splash";
-      s.el.appendChild(el("div.error", { text: tr("Couldn't load addons: {msg}", { msg: e.message }) }));
+      s.el.appendChild(el("div.error", { text: retrying
+        ? tr("Can't reach the internet yet. Trying again…")
+        : tr("Couldn't load addons: {msg}", { msg: e.message }) }));
       s.el.appendChild(button(tr("Try again"), enter, "", "retry"));
       App.refocus();
     });
+    s.destroy = function () { stop(); };
   }
 
   // ---------- home ----------
@@ -274,23 +277,38 @@ var Screens = (function () {
       return { entry: entry, el: r };
     });
     if (!entries.length) page.appendChild(el("div.empty", { text: tr("None of your addons provide catalogs.") }));
+    var catalogStops = [], homeClosed = false;
     limited(rows.map(function (r) {
       return function () {
-        return Addons.catalog(r.entry).then(function (metas) {
-          if (!metas.length) { r.el.remove(); return; }
-          var strip = r.el.querySelector(".strip");
-          strip.classList.remove("skeleton");
-          U.clear(strip);
-          metas.slice(0, 40).forEach(function (m) { strip.appendChild(card(m)); });
-          showArtIn(strip, 10);
-          // Until the user moves, keep focus on the first poster rather than the tabs.
-          if (App.top() !== s) return;
-          var cur = Nav.current();
-          App.refocus(!moved && (!cur || cur.classList.contains("tab")) ? s.initialFocus() : null);
-        }, function () { r.el.remove(); if (App.top() === s) App.refocus(); });
+        if (homeClosed) return Promise.resolve();
+        // Release the initial concurrency slot on the first result; retries
+        // continue independently so an offline row cannot block later rows.
+        return new Promise(function (release) {
+          catalogStops.push(U.retry(function () { return Addons.catalog(r.entry); }, function (metas) {
+            release();
+            if (!metas.length) { r.el.remove(); return; }
+            var strip = r.el.querySelector(".strip");
+            strip.classList.remove("skeleton");
+            U.clear(strip);
+            metas.slice(0, 40).forEach(function (m) { strip.appendChild(card(m)); });
+            showArtIn(strip, 10);
+            // Until the user moves, keep focus on the first poster rather than the tabs.
+            if (App.top() !== s) return;
+            var cur = Nav.current();
+            App.refocus(!moved && (!cur || cur.classList.contains("tab")) ? s.initialFocus() : null);
+          }, function (e, retrying) {
+            release();
+            var strip = r.el.querySelector(".strip");
+            strip.classList.remove("skeleton");
+            U.clear(strip).appendChild(el("div.error", { text: retrying
+              ? tr("Can't reach the internet yet. Trying again…")
+              : tr("Couldn't load addons: {msg}", { msg: e.message }) }));
+          }));
+        });
       };
     }), 4);
 
+    s.destroy = function () { homeClosed = true; catalogStops.forEach(function (stop) { stop(); }); };
     s.initialFocus = function () { return s.el.querySelector(".row .card.focusable") || s.el.querySelector(".tab.active"); };
     var moved = false;
     s.key = function (code) { if (code >= 37 && code <= 40) moved = true; return false; };
@@ -670,8 +688,8 @@ var Screens = (function () {
     setStatus();
     list.appendChild(streamsSkeleton());
     filters.classList.add("hidden");
-    // No addon answered (e.g. the TV is still connecting): try again shortly.
-    var closed = false, retryTimer = null;
+    // Retry only failed addons, including partial failures during reconnection.
+    var closed = false, retryTimer = null, completedAddons = {}, retryDelay = 3000;
     function load() {
       Addons.streams(meta.type, video.id, function (addon, found) {
         if (closed) return;
@@ -686,10 +704,13 @@ var Screens = (function () {
         });
         setStatus();
         render();
-      }).then(function () {
+      }, completedAddons).then(function (results) {
         if (closed) return;
         done = true; setStatus(); render();
-        if (addonCount && !answered) retryTimer = setTimeout(load, 3000);
+        if (results.some(function (r) { return r === null; })) {
+          retryTimer = setTimeout(load, retryDelay);
+          retryDelay = Math.min(retryDelay * 2, 15000);
+        }
       });
     }
     load();

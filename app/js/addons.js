@@ -96,8 +96,10 @@ var Addons = (function () {
   }
 
   function catalog(entry, extra) {
-    return U.request(url(entry.addon, "catalog", entry.catalog.type, entry.catalog.id, extra), { timeout: 20000 })
-      .then(function (r) { return (r && r.metas) || []; });
+    var pending = U.request(url(entry.addon, "catalog", entry.catalog.type, entry.catalog.id, extra), { timeout: 20000 });
+    var result = pending.then(function (r) { return (r && r.metas) || []; });
+    result.cancel = pending.cancel;
+    return result;
   }
 
   // First addon (in collection order) that returns a meta wins, like Stremio.
@@ -123,13 +125,22 @@ var Addons = (function () {
 
   // Streams from every addon in parallel. onGroup(addon, streams) is called
   // as each addon answers; resolves when all are done.
-  function streams(type, id, onGroup) {
-    var candidates = all().filter(function (a) { return supports(a, "stream", type, id); });
+  function streams(type, id, onGroup, completed) {
+    completed = completed || {};
+    var candidates = all().filter(function (a) { return supports(a, "stream", type, id) && !completed[a.transportUrl]; });
     return U.settle(candidates.map(function (addon) {
       return U.request(url(addon, "stream", type, id), { timeout: 30000 }).then(function (r) {
         var list = (r && r.streams) || [];
+        completed[addon.transportUrl] = true;
         onGroup(addon, list);
         return list;
+      }, function (e) {
+        // Permanent HTTP errors should not keep an addon in the retry queue.
+        if (e.status && e.status !== 408 && e.status !== 429 && e.status < 500) {
+          completed[addon.transportUrl] = true;
+          return [];
+        }
+        throw e;
       });
     }));
   }

@@ -1,5 +1,9 @@
 # HTTPS DNS on the LG B8
 
+> Current configuration (2026-11-08): native ConnMan DNS is restored; the
+> custom HTTPS DNS boot hook is disabled. The sections below describe the
+> historical setup and optional forwarder. See the latest entry at the end.
+
 The initial symptom looked like UDP DNS failure. Further tests found an IP
 address conflict: the TV was manually assigned **192.168.0.9**, and another
 MAC (**8E:D4:73:B3:37:6E**) answered an ARP duplicate-address probe for that IP.
@@ -169,3 +173,52 @@ router fix made it unnecessary. When testing Wi-Fi on the TV, don't run
 `connmanctl disconnect` from a script: it ended the test script before its
 own recovery step ran, and the TV stayed offline until reconnected from the
 TV's Settings.
+
+## Native DNS and startup recovery (2026-11-08)
+
+The TV switched from George Martin to Vince Gilligan (5 GHz, 5200 MHz).
+A captured switch took about 29 seconds, including an authentication retry;
+DHCP then completed and metadata HTTPS worked with the forwarder still active.
+This did not establish DNS as the cause of the wireless delay.
+
+Direct UDP DNS tests against the router (192.168.0.1) and forwarder both
+resolved Cinemeta, api.strem.io and OpenSubtitles. The native system resolver
+was restored by deactivating stremio-dns and removing only our 92-stremio-dns
+hook. ConnMan's underlying resolver uses 127.0.0.1; this is its native local
+DNS proxy, distinct from our former 127.0.0.2 worker. Metadata HTTPS passed
+using this resolver. DHCP and the saved Wi-Fi profile were left unchanged.
+
+A private backup and rollback script remain on the TV at
+`/media/developer/stremio/updates/native-dns-20261108-204312/rollback.sh`.
+The script restores the saved boot hook and activates the optional forwarder.
+A two-minute automatic rollback was armed before the change and disarmed
+only after native DNS/HTTPS verification succeeded. Original network backups
+remain private on the TV; they have not been copied into this repository.
+
+App 1.3.9 retries startup addon loading and failed Home catalogs with a delay
+that grows from 3 to at most 15 seconds. Failed rows remain visible instead
+of disappearing. Closing a screen stops its retry timers. Catalog requests
+are cancelled on screen destruction. The shared request helper uses XHR,
+which can actually abort on this TV's Chromium 53, including on timeout.
+Account writes are not automatically retried. Stream lists retain successful
+addon results and retry only failed addons; permanent HTTP errors are not
+retried. No script disconnects or resets Wi-Fi.
+
+`node tests/network-recovery.test.js` covers request cancellation/timeouts,
+retry delays, cleanup, permanent errors, partial-addon recovery, offline
+startup and Home catalog recovery. Existing account, subtitle, DNS-forwarder
+and server-update tests also pass. A physical power-off/startup and playback
+interruption test remain separate from a software reboot and mocked tests.
+
+### Reboot validation
+
+After a software reboot, the TV automatically rejoined Vince Gilligan with
+DHCP address 192.168.0.3. The driver recorded a successful association around
+23.37 seconds after boot, with no authentication retry in the filtered log.
+At uptime 46.85 seconds, the TV reported internet availability. The native
+ConnMan resolver remained active, the custom resolver mount and hook were
+absent, and the forwarder remained stopped. Cinemeta metadata returned HTTP
+200 in 0.503 seconds. App 1.3.9 launched successfully, was reported as the
+foreground app, and its local streaming server answered /settings. Installed
+util.js and screens.js SHA-256 hashes matched the tested source. This verifies
+service/API behavior, not on-screen rendering or actual playback.

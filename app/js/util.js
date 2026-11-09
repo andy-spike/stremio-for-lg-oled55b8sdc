@@ -81,25 +81,55 @@ var U = (function () {
     return ((h + 11) % 12 + 1) + ":" + m + (h < 12 ? " AM" : " PM");
   }
 
-  // fetch with a timeout. Resolves to parsed JSON; rejects on HTTP errors.
+  // XHR supports real cancellation on Chromium 53 (AbortController does not).
   function request(url, opts) {
     opts = opts || {};
-    return new Promise(function (resolve, reject) {
-      var done = false;
-      var timer = setTimeout(function () { done = true; reject(new Error("Timed out: " + url)); }, opts.timeout || 15000);
-      fetch(url, {
-        method: opts.body === undefined ? "GET" : "POST",
-        headers: opts.body === undefined ? {} : { "content-type": "application/json" },
-        body: opts.body === undefined ? undefined : JSON.stringify(opts.body)
-      }).then(function (res) {
-        if (!res.ok) { var err = new Error(res.status + " " + res.statusText + ": " + url); err.status = res.status; throw err; }
-        return opts.text ? res.text() : res.json();
-      }).then(function (v) {
-        if (!done) { done = true; clearTimeout(timer); resolve(v); }
-      }, function (e) {
-        if (!done) { done = true; clearTimeout(timer); reject(e); }
-      });
+    var x, cancel;
+    var promise = new Promise(function (resolve, reject) {
+      x = new XMLHttpRequest();
+      function fail(message) { reject(new Error(message + ": " + url)); }
+      x.open(opts.body === undefined ? "GET" : "POST", url, true);
+      x.timeout = opts.timeout || 15000;
+      if (opts.body !== undefined) x.setRequestHeader("content-type", "application/json");
+      x.onload = function () {
+        if (x.status < 200 || x.status >= 300) {
+          var e = new Error(x.status + " " + x.statusText + ": " + url);
+          e.status = x.status; reject(e); return;
+        }
+        try { resolve(opts.text ? x.responseText : JSON.parse(x.responseText)); }
+        catch (e) { reject(e); }
+      };
+      x.onerror = function () { fail("Network error"); };
+      x.ontimeout = function () { fail("Timed out"); };
+      x.onabort = function () { fail("Cancelled"); };
+      cancel = function () { x.abort(); };
+      x.send(opts.body === undefined ? null : JSON.stringify(opts.body));
     });
+    promise.cancel = function () { if (cancel) cancel(); };
+    return promise;
+  }
+
+  // One request at a time; retry transient failures with a capped delay.
+  // The owner must stop this when its screen is destroyed.
+  function retry(task, success, failure) {
+    var stopped = false, timer = null, pending = null, delay = 3000;
+    function run() {
+      if (stopped) return;
+      pending = task();
+      pending.then(function (value) {
+        if (!stopped) success(value);
+      }, function (e) {
+        if (stopped) return;
+        var transient = !e.status || e.status === 408 || e.status === 429 || e.status >= 500;
+        failure(e, transient);
+        if (transient) { timer = setTimeout(run, delay); delay = Math.min(delay * 2, 15000); }
+      });
+    }
+    run();
+    return function () {
+      stopped = true; clearTimeout(timer);
+      if (pending && pending.cancel) pending.cancel();
+    };
   }
 
   // Like Promise.all, but never rejects: failed entries become null.
@@ -180,7 +210,7 @@ var U = (function () {
   }
 
   return { $: $, $all: $all, el: el, clear: clear, load: load, save: save, forget: forget, timeOfDay: timeOfDay,
-    request: request, settle: settle, nowIso: nowIso, clock: clock, bytes: bytes,
+    request: request, retry: retry, settle: settle, nowIso: nowIso, clock: clock, bytes: bytes,
     lastStream: lastStream, setLastStream: setLastStream, migrateLastStreams: migrateLastStreams,
     langName: langName, sameLang: sameLang, langOptions: langOptions, subLangs: subLangs, wantSubLang: wantSubLang };
 })();
